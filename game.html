@@ -437,6 +437,50 @@ canvas.addEventListener('touchstart', e=>{
       delete activeTouches[t.identifier];
       continue;
     }
+    // 衣装部屋: パネルタップで選択・決定、出るボタン
+    if(state === 'costume_room'){
+      const cw=180, ch=220, gap=30;
+      const totalW=3*(cw+gap)-gap;
+      const ox=W/2-totalW/2;
+      let handled=false;
+      // 出るボタン
+      if(pt.x>=W/2-70&&pt.x<=W/2+70&&pt.y>=H-60&&pt.y<=H-24){
+        state='play'; handled=true;
+      }
+      if(!handled){
+        for(let i=0;i<3;i++){
+          const px=ox+i*(cw+gap), py=160;
+          if(pt.x>=px&&pt.x<=px+cw&&pt.y>=py&&pt.y<=py+ch){
+            costumeSelectIdx=i; costumeType=i; state='play'; handled=true; break;
+          }
+        }
+      }
+      continue;
+    }
+    // 曲選択: パネルタップで選択・スタート
+    if(state === 'song_select' && currentStage===6){
+      const pw=188, ph=96, pgap=13, rowGap=11;
+      const totalPW=3*(pw+pgap)-pgap;
+      const px0=W/2-totalPW/2;
+      const rowY=[210, 210+ph+rowGap];
+      let handled=false;
+      for(let i=0;i<6;i++){
+        const col=i%3, row=Math.floor(i/3);
+        const bx=px0+col*(pw+pgap), by=rowY[row];
+        if(pt.x>=bx&&pt.x<=bx+pw&&pt.y>=by&&pt.y<=by+ph){
+          if(s6SongIdx===i){ s6BuildChart(s6SongIdx); }
+          else { s6SongIdx=i; }
+          handled=true; break;
+        }
+      }
+      // 左右矢印タップ
+      if(!handled){
+        const arrowY=rowY[0]+ph+rowGap/2;
+        if(pt.x<px0) s6SongIdx=(s6SongIdx+5)%6;
+        else if(pt.x>px0+totalPW) s6SongIdx=(s6SongIdx+1)%6;
+      }
+      continue;
+    }
     // Stage 6: レーンタッチ（音符を鳴らす）
     if(currentStage===6 && state==='play'){
       const lane = s6GetTouchLane(pt.x, pt.y);
@@ -3656,7 +3700,7 @@ function drawS6SongSelect(){
   ctx.save();
   ctx.font='12px Arial'; ctx.textAlign='center';
   ctx.fillStyle='rgba(255,200,200,0.70)';
-  ctx.fillText('← →  で曲を選ぶ  ｜  ↑ ↓  で行を切り替え  ｜  Enter / Space でスタート', W/2, H-14);
+  ctx.fillText(isTouchDevice?'曲パネルをタップ→もう一度タップでスタート！':'← →  で曲を選ぶ  ｜  ↑ ↓  で行を切り替え  ｜  Enter / Space でスタート', W/2, H-14);
   ctx.restore();
 }
 
@@ -4240,7 +4284,7 @@ function drawCostumeRoom(){
   ctx.strokeText('👗 衣装部屋 👗',W/2,60);
   ctx.fillStyle='#FFD700'; ctx.fillText('👗 衣装部屋 👗',W/2,60);
   ctx.font='15px Arial'; ctx.fillStyle='#FFB6C1';
-  ctx.fillText('← → で選択　Spaceで決定！',W/2,88);
+  ctx.fillText(isTouchDevice?'衣装をタップして選ぼう！':'← → で選択　Spaceで決定！',W/2,88);
   ctx.restore();
 
   const costumes=[
@@ -4296,10 +4340,14 @@ function drawCostumeRoom(){
   ctx.fillText('◄',ox-20,160+220/2+10);
   ctx.fillText('►',ox+totalW+20,160+220/2+10);
 
-  // 戻るボタン
-  ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.roundRect(W/2-70,H-55,140,36,18); ctx.fill();
-  ctx.fillStyle='#aaa'; ctx.font='14px Arial'; ctx.textAlign='center';
-  ctx.fillText('ESC で戻る',W/2,H-31);
+  // 戻るボタン（タッチ対応）
+  ctx.save();
+  ctx.fillStyle='rgba(255,100,160,0.25)';
+  ctx.strokeStyle='rgba(255,150,200,0.7)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(W/2-70,H-60,140,36,18); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#FFB6C1'; ctx.font='bold 14px Arial'; ctx.textAlign='center';
+  ctx.fillText(isTouchDevice?'✕ 出る':'ESC で戻る',W/2,H-36);
+  ctx.restore();
 }
 
 // ── Enemy ─────────────────────────────────
