@@ -5690,6 +5690,7 @@ function draw(){
   // ── ステージ4ボンバーマン迷路
   if(currentStage===4){
     drawStage4Scene();
+    drawTouchControls();
     if(state==='stage_clear') drawStageClear();
     if(state==='gameover') drawGameoverScreen();
     return;
@@ -5698,6 +5699,7 @@ function draw(){
   // ── ステージ5ドンキーコング
   if(currentStage===5){
     drawStage5Scene();
+    drawTouchControls();
     if(state==='win') drawWinScreen();
     if(state==='gameover') drawGameoverScreen();
     if(state==='stage_clear') drawStageClear();
