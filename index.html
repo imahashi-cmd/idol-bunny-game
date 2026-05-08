@@ -402,8 +402,8 @@ function syncTouchKeys(){
     if(hitBtn(x, y, TB.left))  keys['ArrowLeft']  = true;
     if(hitBtn(x, y, TB.right)) keys['ArrowRight'] = true;
     if(hitBtn(x, y, TB.jump))  keys['Space']      = true;
-    if(currentStage===3 && hitBtn(x, y, TB3.up))   keys['ArrowUp']   = true;
-    if(currentStage===3 && hitBtn(x, y, TB3.down))  keys['ArrowDown']  = true;
+    if((currentStage===3||currentStage===4||currentStage===5) && hitBtn(x, y, TB3.up))   keys['ArrowUp']   = true;
+    if((currentStage===3||currentStage===4||currentStage===5) && hitBtn(x, y, TB3.down))  keys['ArrowDown']  = true;
   }
 }
 
@@ -468,8 +468,7 @@ canvas.addEventListener('touchstart', e=>{
         const col=i%3, row=Math.floor(i/3);
         const bx=px0+col*(pw+pgap), by=rowY[row];
         if(pt.x>=bx&&pt.x<=bx+pw&&pt.y>=by&&pt.y<=by+ph){
-          if(s6SongIdx===i){ s6BuildChart(s6SongIdx); }
-          else { s6SongIdx=i; }
+          s6SongIdx=i; s6BuildChart(i); state='play';
           handled=true; break;
         }
       }
@@ -3700,7 +3699,7 @@ function drawS6SongSelect(){
   ctx.save();
   ctx.font='12px Arial'; ctx.textAlign='center';
   ctx.fillStyle='rgba(255,200,200,0.70)';
-  ctx.fillText(isTouchDevice?'曲パネルをタップ→もう一度タップでスタート！':'← →  で曲を選ぶ  ｜  ↑ ↓  で行を切り替え  ｜  Enter / Space でスタート', W/2, H-14);
+  ctx.fillText(isTouchDevice?'曲パネルをタップしてスタート！':'← →  で曲を選ぶ  ｜  ↑ ↓  で行を切り替え  ｜  Enter / Space でスタート', W/2, H-14);
   ctx.restore();
 }
 
@@ -4730,10 +4729,15 @@ function drawTouchControls(){
 
   drawBtn(TB.left.x,  TB.left.y,  TB.left.r,  !!keys['ArrowLeft'],  '◀', 22);
   drawBtn(TB.right.x, TB.right.y, TB.right.r, !!keys['ArrowRight'], '▶', 22);
+  // S3/S4/S5: 上下ボタン（D-pad）
+  if(currentStage===3||currentStage===4||currentStage===5){
+    drawBtn(TB3.up.x,   TB3.up.y,   TB3.up.r,   !!keys['ArrowUp'],   '▲', 20);
+    drawBtn(TB3.down.x, TB3.down.y, TB3.down.r, !!keys['ArrowDown'],  '▼', 20);
+  }
   // S6では右ジャンプボタン不要（レーンボタン使用）
   if(currentStage!==6){
-    drawBtn(TB.jump.x, TB.jump.y, TB.jump.r, !!keys['Space'],
-      currentStage===5?(costumeType===2?'斬':costumeType===1?'★':'蹴'):'▲', 26);
+    const jumpLabel = currentStage===4?'💣':currentStage===5?(costumeType===2?'斬':costumeType===1?'★':'蹴'):'▲';
+    drawBtn(TB.jump.x, TB.jump.y, TB.jump.r, !!keys['Space'], jumpLabel, currentStage===4?20:26);
   }
   // S2ドアボタン（ドア付近のみ表示）
   if((currentStage===1||currentStage===2) && s2NearDoor){
