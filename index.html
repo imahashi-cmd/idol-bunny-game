@@ -2266,6 +2266,29 @@ function drawS4PowerItems(){
   });
 }
 
+function drawTouchControlsS4(){
+  if(!isTouchDevice) return;
+  ctx.save();
+  const db=(x,y,r,pressed,label,sz)=>{
+    ctx.globalAlpha=pressed?0.88:0.65;
+    ctx.fillStyle=pressed?'#fff':'rgba(255,255,255,0.85)';
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=pressed?1:0.80;
+    ctx.strokeStyle='#FFD700'; ctx.lineWidth=pressed?3:2.5;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=1;
+    ctx.fillStyle='#222'; ctx.font=`bold ${sz}px Arial`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(label,x,y); ctx.textBaseline='alphabetic';
+  };
+  db(TB.left.x, TB.left.y, TB.left.r, !!keys['ArrowLeft'],  '◀', 22);
+  db(TB.right.x,TB.right.y,TB.right.r,!!keys['ArrowRight'], '▶', 22);
+  db(TB3.up.x,  TB3.up.y,  TB3.up.r,  !!keys['ArrowUp'],    '▲', 20);
+  db(TB3.down.x,TB3.down.y,TB3.down.r,!!keys['ArrowDown'],  '▼', 20);
+  db(TB.jump.x, TB.jump.y, TB.jump.r, !!keys['Space'],      '💣', 20);
+  ctx.restore();
+}
+
 function drawStage4Scene(){
   // 暗い背景
   ctx.fillStyle='#1a1410'; ctx.fillRect(0,0,W,H);
@@ -2288,6 +2311,7 @@ function drawStage4Scene(){
     ctx.restore();
   }
   drawS4HUD();
+  drawTouchControlsS4();
 }
 
 // ════════════════════════════════════════════
@@ -5687,19 +5711,17 @@ function draw(){
     return;
   }
 
-  // ── ステージ4ボンバーマン迷路
+  // ── ステージ4ボンバーマン迷路（タッチUIはdrawStage4Scene内で描画）
   if(currentStage===4){
     drawStage4Scene();
-    drawTouchControls();
     if(state==='stage_clear') drawStageClear();
     if(state==='gameover') drawGameoverScreen();
     return;
   }
 
-  // ── ステージ5ドンキーコング
+  // ── ステージ5ドンキーコング（タッチUIはdrawStage5Scene内で描画）
   if(currentStage===5){
     drawStage5Scene();
-    drawTouchControls();
     if(state==='win') drawWinScreen();
     if(state==='gameover') drawGameoverScreen();
     if(state==='stage_clear') drawStageClear();
