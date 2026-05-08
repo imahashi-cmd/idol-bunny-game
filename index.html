@@ -2270,14 +2270,22 @@ function drawTouchControlsS4(){
   if(!isTouchDevice) return;
   ctx.save();
   const db=(x,y,r,pressed,label,sz)=>{
-    ctx.globalAlpha=pressed?0.88:0.65;
-    ctx.fillStyle=pressed?'#fff':'rgba(255,255,255,0.85)';
+    // 影（黒い一回り大きい円）でどんな背景でも浮き出る
+    ctx.globalAlpha=0.60;
+    ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.arc(x,y,r+4,0,Math.PI*2); ctx.fill();
+    // ボタン本体
+    ctx.globalAlpha=pressed?0.95:0.75;
+    ctx.fillStyle=pressed?'#FFD700':'#fff';
     ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-    ctx.globalAlpha=pressed?1:0.80;
-    ctx.strokeStyle='#FFD700'; ctx.lineWidth=pressed?3:2.5;
-    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+    // 枠線
     ctx.globalAlpha=1;
-    ctx.fillStyle='#222'; ctx.font=`bold ${sz}px Arial`;
+    ctx.strokeStyle=pressed?'#FF8800':'#FFD700';
+    ctx.lineWidth=pressed?3:2.5;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke();
+    // ラベル
+    ctx.fillStyle=pressed?'#333':'#222';
+    ctx.font=`bold ${sz}px Arial`;
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText(label,x,y); ctx.textBaseline='alphabetic';
   };
