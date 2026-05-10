@@ -924,11 +924,11 @@ function updateStage3(){
     if(s3TripleTimer>0){
       // ３連砲モード
       for(let i=-1;i<=1;i++)
-        s3Bullets.push({x:P.x+P.w,y:P.y+P.h/2+i*14,vx:S3_BSPD*0.85,vy:i*2.5,on:true,big:true});
+        s3Bullets.push({x:P.x+P.w/2+32,y:P.y+P.h/2-32+i*14,vx:S3_BSPD*0.85,vy:i*2.5,on:true,big:true});
       beep(880,0.07,0.1,'square');
     } else {
-      // 通常射撃
-      s3Bullets.push({x:P.x+P.w,y:P.y+P.h/2,vx:S3_BSPD,vy:0,on:true,big:false});
+      // 通常射撃（杖の先端から）
+      s3Bullets.push({x:P.x+P.w/2+32,y:P.y+P.h/2-32,vx:S3_BSPD,vy:0,on:true,big:false});
       beep(700,0.05,0.08,'square');
     }
   }
@@ -1501,6 +1501,25 @@ function drawS3Player(){
   ctx.scale(0.62,0.62);
   if(P.facing<0) ctx.scale(-1,1);
   drawCharacter(0,0,1,0,false,false,0); // walkT=0 で完全静止
+  ctx.restore();
+
+  // ── マジカルステッキ（常に右向き・先端から弾を発射）
+  ctx.save();
+  const wx0=cx+10, wy0=cy-26; // 腕の付け根
+  const wx1=cx+32, wy1=cy-32; // 先端（弾の発射口）
+  // 杖の柄
+  const wg=ctx.createLinearGradient(wx0,wy0,wx1,wy1);
+  wg.addColorStop(0,'#6B3A10'); wg.addColorStop(1,'#A0522D');
+  ctx.strokeStyle=wg; ctx.lineWidth=3.5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(wx0,wy0); ctx.lineTo(wx1,wy1); ctx.stroke();
+  // 先端の星（点滅）
+  const wGlow=0.7+Math.sin(s3GameT*0.2)*0.3;
+  ctx.globalAlpha=wGlow;
+  ctx.shadowColor='#FFD700'; ctx.shadowBlur=12;
+  drawStar(wx1,wy1,7,'#FFD700');
+  ctx.shadowBlur=0; ctx.globalAlpha=1;
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(wx1,wy1,2.5,0,Math.PI*2); ctx.fill();
   ctx.restore();
 }
 
@@ -5664,9 +5683,9 @@ function update(){
   // Items
   items.forEach(it=>{
     if(!it.on) return;
-    // ゴールポールは中心軸±10pxの細い判定（ポール太さ4pxより少し余裕）
+    // ゴールポールは中心軸±10px かつ 着地中のみ有効（ジャンプ/落下では取れない）
     const hitX = it.k==='goal'
-      ? (P.x<it.x+10&&P.x+P.w>it.x-10)
+      ? (P.x<it.x+10&&P.x+P.w>it.x-10&&P.onGround)
       : (P.x<it.x+it.w&&P.x+P.w>it.x);
     if(hitX&&P.y<it.y+it.h&&P.y+P.h>it.y){
       if(it.k!=='goal'&&it.k!=='door') it.on=false;
