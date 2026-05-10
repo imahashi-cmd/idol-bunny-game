@@ -5664,8 +5664,12 @@ function update(){
   // Items
   items.forEach(it=>{
     if(!it.on) return;
-    if(P.x<it.x+it.w&&P.x+P.w>it.x&&P.y<it.y+it.h&&P.y+P.h>it.y){
-      it.on=false;
+    // ゴールポールは中心軸±10pxの細い判定（ポール太さ4pxより少し余裕）
+    const hitX = it.k==='goal'
+      ? (P.x<it.x+10&&P.x+P.w>it.x-10)
+      : (P.x<it.x+it.w&&P.x+P.w>it.x);
+    if(hitX&&P.y<it.y+it.h&&P.y+P.h>it.y){
+      if(it.k!=='goal'&&it.k!=='door') it.on=false;
       if(it.k==='note'){
         noteCount++; score+=50; sfxCollect();
         spawnParticles(it.x+cam.x,it.y,'#FFD700',6,'note');
@@ -5694,9 +5698,7 @@ function update(){
     }
   });
 
-  // Win by reaching end
-  const winX = currentStage===2 ? 4300 : 5700;
-  if(P.x>winX) triggerWin();
+  // ゴールはポールへのタッチ判定のみ（上記アイテム衝突で処理）
 
   updateFX();
 }
