@@ -3259,7 +3259,7 @@ function drawS5BackChar(cx, cy, wt){
 
 function drawS5Player(){
   if(P.invTimer>0&&Math.floor(P.invTimer/5)%2===0) return;
-  const sx=P.x+P.w/2, sy=P.y+P.h;
+  const sx=P.x+P.w/2, sy=P.y+P.h-31; // 脚底offset=31で地面に揃える
   const kickProg = s5KickAnim/18;
 
   if(s5OnLadder5){
@@ -5759,7 +5759,8 @@ function draw(){
     const blink = state!=='dance_flash' && P.invTimer>0 && Math.floor(P.invTimer/5)%2===0;
     if(!blink){
       const sx = P.x - cam.x + P.w/2;
-      const sy = P.y + P.h;
+      // 脚の底がorigin+36なので、地面(P.y+P.h)に合わせるため36引く
+      const sy = P.y + P.h - 36;
       if(state==='dance_flash'){
         // ダンス中は少し大きく＋揺れる
         ctx.save();
