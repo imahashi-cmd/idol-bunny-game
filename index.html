@@ -438,6 +438,10 @@ const TB3 = {
 // Stage 2 ドア入室ボタン
 const TB_DOOR = { x: W/2, y: H - 55, r: 42 };
 let s2NearDoor = false;
+let s2Bullets = [];     // 魔法弾（世界座標）
+let s2FireCD  = 0;      // 発射クールダウン
+let s2SwordTimer = 0;   // 剣振りアニメ残フレーム（>0=振り中）
+let s2SwordCD    = 0;   // 剣振りクールダウン
 // Stage 6 タッチ中のレーン管理（touchId → lane）
 const s6TouchLaneMap = new Map();
 const activeTouches = {};
@@ -654,7 +658,14 @@ function initGame(stage=1) {
   if(stage===5) { startBGM5(); initStage5(); return; }
   if(stage===4) { startBGM4(); initStage4(); return; }
   if(stage===3) { startBGM3(); initStage3(); return; }
-  if(stage===2) { startBGM2(); initStage2(); return; }
+  if(stage===2) {
+    startBGM2(); initStage2();
+    const s2hint = costumeType===1 ? '← → 移動 | ↑ ジャンプ | Space 星を発射！ | 衣装部屋でコスチューム変更'
+                 : costumeType===2 ? '← → 移動 | ↑ ジャンプ | Space 剣を振る！ | 衣装部屋でコスチューム変更'
+                 : '← → 移動 | Space/↑ ジャンプ | 踏んで敵をやっつけよう！ | 衣装部屋でコスチューム変更';
+    document.getElementById('hint').textContent=s2hint;
+    return;
+  }
   startBGM();
 
   // Ground sections (with deliberate gaps)
@@ -846,6 +857,7 @@ function initStage2() {
   }));
 
   bgTrees=[]; // 使わない (ダンスホールは背景が別)
+  s2Bullets=[]; s2FireCD=0; s2SwordTimer=0; s2SwordCD=0;
 }
 
 // ════════════════════════════════════════════
@@ -4958,6 +4970,52 @@ function drawTouchControlsS6(){
   ctx.restore();
 }
 
+// ── ステージ2 魔法弾・剣描画 ────────────────
+function drawS2Combat(){
+  if(currentStage!==2) return;
+
+  // 魔法弾（星）
+  s2Bullets.forEach(b=>{
+    const sx=b.x-cam.x, sy=b.y;
+    ctx.save();
+    ctx.shadowColor='#FFD700'; ctx.shadowBlur=16;
+    ctx.globalAlpha=0.85+Math.sin(b.t*0.5)*0.15;
+    drawStar(sx,sy,9,'#FFD700');
+    ctx.globalAlpha=1; ctx.shadowBlur=0;
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(sx,sy,2.5,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  // 剣の振りエフェクト（戦士のみ）
+  if(costumeType===2 && s2SwordTimer>0){
+    const prog=(20-s2SwordTimer)/20; // 0→1
+    const sx=P.x-cam.x+P.w/2+P.facing*8;
+    const sy=P.y+P.h-36-18; // キャラ腕あたり
+    const startAng=P.facing>0?-Math.PI*0.75:-Math.PI*0.25;
+    const endAng  =P.facing>0?Math.PI*0.15 :-Math.PI*1.15;
+    const ang=startAng+(endAng-startAng)*prog;
+    const len=46;
+    ctx.save();
+    ctx.translate(sx, sy);
+    // 残像スラッシュ弧
+    ctx.globalAlpha=0.35*(1-prog);
+    ctx.strokeStyle='#88CCFF'; ctx.lineWidth=18; ctx.lineCap='round';
+    ctx.shadowColor='#88CCFF'; ctx.shadowBlur=18;
+    ctx.beginPath();
+    ctx.arc(0,0,len*0.6, startAng, ang, P.facing<0);
+    ctx.stroke();
+    ctx.globalAlpha=1; ctx.shadowBlur=0;
+    // 剣本体
+    const g=ctx.createLinearGradient(0,0,Math.cos(ang)*len,Math.sin(ang)*len);
+    g.addColorStop(0,'#AAA'); g.addColorStop(0.4,'#FFF'); g.addColorStop(1,'#88CCFF');
+    ctx.strokeStyle=g; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.shadowColor='#AADDFF'; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(ang)*len,Math.sin(ang)*len); ctx.stroke();
+    ctx.restore();
+  }
+}
+
 // ── Particles & floating texts ────────────
 function spawnParticles(wx,wy,color,n,kind){
   for(let i=0;i<n;i++){
@@ -5756,10 +5814,65 @@ function update(){
   else if(mr){ P.vx=WALK_SPD; P.facing=1; }
   else P.vx*=0.78;
 
-  // Jump
-  if((just['Space']||just['ArrowUp']||just['KeyW'])&&P.onGround){
+  // Jump（ステージ2で衣装アクションがある場合はSpaceはアクション用、↑/Wでジャンプ）
+  const s2Action = currentStage===2 && (costumeType===1||costumeType===2);
+  if((just['ArrowUp']||just['KeyW']||(!s2Action&&just['Space']))&&P.onGround){
     P.vy=JUMP_V; sfxJump();
   }
+
+  // ── ステージ2 衣装アクション ─────────────────
+  if(currentStage===2){
+    if(s2FireCD>0) s2FireCD--;
+    if(s2SwordCD>0) s2SwordCD--;
+    if(s2SwordTimer>0) s2SwordTimer--;
+
+    // 魔法少女：Spaceで星を発射
+    if(costumeType===1 && just['Space'] && s2FireCD===0){
+      const bx=P.x+P.w/2+P.facing*18, by=P.y+P.h/2-12;
+      s2Bullets.push({x:bx,y:by,vx:P.facing*11,on:true,t:0});
+      s2FireCD=16;
+      beep(880,0.08,0.13,'sine'); beep(1100,0.05,0.08,'sine',0.07);
+    }
+
+    // 戦士：Spaceで剣を振る
+    if(costumeType===2 && just['Space'] && s2SwordCD===0){
+      s2SwordTimer=20; s2SwordCD=30;
+      beep(300,0.06,0.18,'sawtooth'); beep(180,0.05,0.12,'sawtooth',0.06);
+    }
+
+    // 弾の移動・当たり判定（世界座標）
+    for(let i=s2Bullets.length-1;i>=0;i--){
+      const b=s2Bullets[i]; b.x+=b.vx; b.t++;
+      if(b.x<cam.x-40||b.x>cam.x+W+40){ s2Bullets.splice(i,1); continue; }
+      let hit=false;
+      enemies.forEach(e=>{
+        if(!e.on||hit) return;
+        if(b.x>e.x&&b.x<e.x+e.w&&b.y>e.y&&b.y<e.y+e.h){
+          e.on=false; hit=true; score+=150;
+          spawnParticles(e.x+e.w/2+cam.x,e.y,'#FFD700',10,'star');
+          spawnText(e.x+e.w/2+cam.x,e.y-10,'★+150','#FFD700');
+          sfxStomp();
+        }
+      });
+      if(hit) s2Bullets.splice(i,1);
+    }
+
+    // 剣の当たり判定（振り始め8フレーム間）
+    if(s2SwordTimer>12){
+      const reach=64, ssx=P.facing>0?P.x+P.w:P.x-reach;
+      const ssy=P.y+4, ssh=34;
+      enemies.forEach(e=>{
+        if(!e.on) return;
+        if(ssx<e.x+e.w&&ssx+reach>e.x&&ssy<e.y+e.h&&ssy+ssh>e.y){
+          e.on=false; score+=150;
+          spawnParticles(e.x+e.w/2+cam.x,e.y,'#88CCFF',10,'star');
+          spawnText(e.x+e.w/2+cam.x,e.y-10,'斬！+150','#88CCFF');
+          sfxStomp();
+        }
+      });
+    }
+  }
+  // ── ステージ2 衣装アクション ここまで ──────────
 
   // Gravity
   P.vy=Math.min(P.vy+GRAVITY,16);
@@ -5896,6 +6009,7 @@ function draw(){
   platforms.forEach(drawPlatform);
   drawItems();
   enemies.forEach(e=>{ if(e.on) drawEnemy(e); });
+  drawS2Combat();
 
   // ── ダンス: スポットライトをキャラより先に描く
   if(state==='dance_flash') drawDanceSpots();
