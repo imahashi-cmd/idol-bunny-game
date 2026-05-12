@@ -742,8 +742,11 @@ function initGame(stage=1) {
     [2790,168],[3290,178],[3790,168],[4290,158],[4790,158],[5290,138]
   ].forEach(([x,y])=>items.push({k:'star',x,y,w:22,h:22,on:true,t:Math.random()*6.28}));
 
-  // Goal flag
+  // ゴールフラグ
   items.push({k:'goal',x:5650,y:248,w:24,h:100,on:true});
+
+  // 隠し扉（衣装部屋へのワープ）- スタート地点近く
+  items.push({k:'door',x:42,y:GROUND_TOP-88,w:44,h:88,on:true});
 
   // Enemies
   [
