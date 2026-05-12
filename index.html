@@ -5831,10 +5831,10 @@ function update(){
     if(s2SwordCD>0) s2SwordCD--;
     if(s2SwordTimer>0) s2SwordTimer--;
 
-    // 魔法少女：Spaceで星を発射
+    // 魔法少女：Spaceで星を発射（バウンド弾）
     if(costumeType===1 && just['Space'] && s2FireCD===0){
       const bx=P.x+P.w/2+P.facing*18, by=P.y+P.h/2-12;
-      s2Bullets.push({x:bx,y:by,vx:P.facing*11,on:true,t:0});
+      s2Bullets.push({x:bx,y:by,vx:P.facing*10,vy:2,on:true,t:0,bounces:0});
       s2FireCD=16;
       beep(880,0.08,0.13,'sine'); beep(1100,0.05,0.08,'sine',0.07);
     }
@@ -5845,10 +5845,21 @@ function update(){
       beep(300,0.06,0.18,'sawtooth'); beep(180,0.05,0.12,'sawtooth',0.06);
     }
 
-    // 弾の移動・当たり判定（世界座標）
+    // 弾の移動・当たり判定（世界座標・バウンド）
     for(let i=s2Bullets.length-1;i>=0;i--){
-      const b=s2Bullets[i]; b.x+=b.vx; b.t++;
-      if(b.x<cam.x-40||b.x>cam.x+W+40){ s2Bullets.splice(i,1); continue; }
+      const b=s2Bullets[i];
+      b.vy+=0.55;           // 重力
+      b.x+=b.vx; b.y+=b.vy; b.t++;
+      // 地面バウンド（最大4回）
+      if(b.y>=GROUND_TOP-6){
+        b.y=GROUND_TOP-6;
+        b.bounces=(b.bounces||0)+1;
+        if(b.bounces>=4){ s2Bullets.splice(i,1); continue; }
+        b.vy=-Math.abs(b.vy)*0.62;  // 反発（少し弱める）
+        b.vx*=0.92;                 // 水平も少し減衰
+        beep(660,0.04,0.06,'sine');
+      }
+      if(b.y>H+40||b.x<cam.x-60||b.x>cam.x+W+60){ s2Bullets.splice(i,1); continue; }
       let hit=false;
       enemies.forEach(e=>{
         if(!e.on||hit) return;
