@@ -652,8 +652,10 @@ function initGame(stage=1) {
   cam.x=0;
   particles=[]; floatTxts=[];
   stopBGM();
-  document.getElementById('hint').textContent=
-    '← → / WASD で移動  |  Space / ↑ でジャンプ  |  音符を5つ集めるとダンス！  |  敵を踏んでやっつけよう！';
+  { const s1hint = costumeType===1 ? '← → 移動 | ↑ ジャンプ | Space 星を発射！ | 音符5つでダンス！'
+                 : costumeType===2 ? '← → 移動 | ↑ ジャンプ | Space 剣を振る！ | 音符5つでダンス！'
+                 : '← → / WASD で移動  |  Space / ↑ でジャンプ  |  音符を5つ集めるとダンス！  |  敵を踏んでやっつけよう！';
+    document.getElementById('hint').textContent=s1hint; }
   if(stage===6) { startBGM6(); initStage6(); return; }
   if(stage===5) { startBGM5(); initStage5(); return; }
   if(stage===4) { startBGM4(); initStage4(); return; }
@@ -4972,7 +4974,7 @@ function drawTouchControlsS6(){
 
 // ── ステージ2 魔法弾・剣描画 ────────────────
 function drawS2Combat(){
-  if(currentStage!==2) return;
+  if(currentStage!==1&&currentStage!==2) return;
 
   // 魔法弾（星）
   s2Bullets.forEach(b=>{
@@ -5815,13 +5817,13 @@ function update(){
   else P.vx*=0.78;
 
   // Jump（ステージ2で衣装アクションがある場合はSpaceはアクション用、↑/Wでジャンプ）
-  const s2Action = currentStage===2 && (costumeType===1||costumeType===2);
+  const s2Action = (currentStage===1||currentStage===2) && (costumeType===1||costumeType===2);
   if((just['ArrowUp']||just['KeyW']||(!s2Action&&just['Space']))&&P.onGround){
     P.vy=JUMP_V; sfxJump();
   }
 
   // ── ステージ2 衣装アクション ─────────────────
-  if(currentStage===2){
+  if(currentStage===1||currentStage===2){
     if(s2FireCD>0) s2FireCD--;
     if(s2SwordCD>0) s2SwordCD--;
     if(s2SwordTimer>0) s2SwordTimer--;
