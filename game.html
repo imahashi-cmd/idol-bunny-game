@@ -438,7 +438,6 @@ const TB3 = {
 // Stage 2 ドア入室ボタン
 const TB_DOOR = { x: W/2, y: H - 55, r: 42 };
 let s2NearDoor = false;
-let rainbowTimer = 0;   // ダンス後の無敵虹色点滅（300フレーム=5秒）
 let s2Bullets = [];     // 魔法弾（世界座標）
 let s2FireCD  = 0;      // 発射クールダウン
 let s2SwordTimer = 0;   // 剣振りアニメ残フレーム（>0=振り中）
@@ -650,7 +649,6 @@ function initGame(stage=1) {
   P.x=80; P.y=300; P.vx=0; P.vy=0;
   P.onGround=false; P.facing=1;
   P.invTimer=0; P.walkT=0; P.dancing=false; P.danceT=0;
-  rainbowTimer=0;
   cam.x=0;
   particles=[]; floatTxts=[];
   stopBGM();
@@ -5791,10 +5789,7 @@ function update(){
 
     danceTimer--;
     updateFX();
-    if(danceTimer<=0){
-      state='play'; P.dancing=false; P.y=danceAnchorY; P.x=danceAnchorX;
-      P.invTimer=300; rainbowTimer=300; // ダンス後5秒間無敵・虹色
-    }
+    if(danceTimer<=0){ state='play'; P.dancing=false; P.y=danceAnchorY; P.x=danceAnchorX; }
     return;
   }
 
@@ -5906,7 +5901,6 @@ function update(){
 
   if(Math.abs(P.vx)>0.5&&P.onGround) P.walkT+=0.1;
   if(P.invTimer>0) P.invTimer--;
-  if(rainbowTimer>0) rainbowTimer--;
   if(P.dancing) P.danceT+=0.1;
 
   // Camera
@@ -6038,38 +6032,19 @@ function draw(){
 
   // ── キャラクター描画
   if(state==='play'||state==='dance_flash'){
-    // 虹色無敵中は点滅なし（常に表示・虹色グロー）
-    // 通常無敵中（ダメージ後）は点滅
-    const isRainbow = rainbowTimer>0;
-    const blink = !isRainbow && state!=='dance_flash' && P.invTimer>0 && Math.floor(P.invTimer/5)%2===0;
+    // ダンス中は絶対に点滅させない
+    const blink = state!=='dance_flash' && P.invTimer>0 && Math.floor(P.invTimer/5)%2===0;
     if(!blink){
       const sx = P.x - cam.x + P.w/2;
+      // 脚の底がorigin+36なので、地面(P.y+P.h)に合わせるため36引く
       const sy = P.y + P.h - 36;
       if(state==='dance_flash'){
+        // ダンス中は少し大きく＋揺れる
         ctx.save();
         const sc = 1.15 + Math.sin(P.danceT * 5) * 0.07;
         ctx.translate(sx, sy);
         ctx.scale(sc, sc);
         drawCharacter(0, 0, P.facing, P.walkT, false, true, P.danceT);
-        ctx.restore();
-      } else if(isRainbow){
-        // 虹色グロー＋点滅（3フレームごとに色が変わる）
-        const hue = Math.floor((300-rainbowTimer)*7) % 360;
-        ctx.save();
-        ctx.shadowColor = `hsl(${hue},100%,60%)`;
-        ctx.shadowBlur = 22;
-        // 3フレームごとに一瞬消す点滅
-        if(Math.floor(rainbowTimer/3)%3!==0){
-          drawCharacter(sx, sy, P.facing, P.walkT, !P.onGround, P.dancing, P.danceT);
-        }
-        ctx.restore();
-        // 虹色リング
-        ctx.save();
-        ctx.globalAlpha=0.55;
-        ctx.strokeStyle=`hsl(${(hue+180)%360},100%,65%)`;
-        ctx.lineWidth=3;
-        ctx.shadowColor=`hsl(${hue},100%,60%)`; ctx.shadowBlur=10;
-        ctx.beginPath(); ctx.arc(sx,sy-18,28,0,Math.PI*2); ctx.stroke();
         ctx.restore();
       } else {
         drawCharacter(sx, sy, P.facing, P.walkT, !P.onGround, P.dancing, P.danceT);
