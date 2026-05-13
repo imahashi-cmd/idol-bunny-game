@@ -4115,6 +4115,7 @@ function drawStage6(){
         ctx.fillText('♪',lx,headY+5);
       }
     }
+    ctx.restore(); // ← save() に対応する restore（shadowBlur等をリセット）
   }
 
   // レセプター（ヒットゾーン）
