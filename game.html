@@ -84,6 +84,8 @@ let audioCtx = null;
 function ensureAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  // タイトル画面にいる場合はBGMを起動
+  if (state === 'select' && !_titleBGMRunning) setTimeout(startTitleBGM, 60);
 }
 function beep(freq, dur, vol=0.18, type='sine', delay=0) {
   if (!audioCtx) return;
@@ -324,6 +326,94 @@ function stopBGM() {
   if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; }
   const a = getBGM(); if (a) a.pause();
   const a3 = document.getElementById('bgm3'); if (a3) a3.pause();
+}
+
+// ── タイトル画面BGM（Web Audio API 合成） ────────────
+let _titleBGMRunning = false;
+let _titleBGMTimer   = null;
+let _titleBGMNodes   = [];
+
+function startTitleBGM() {
+  if (_titleBGMRunning || !audioCtx) return;
+  _titleBGMRunning = true;
+  _titleBGMLoop();
+}
+
+function stopTitleBGM() {
+  _titleBGMRunning = false;
+  if (_titleBGMTimer) { clearTimeout(_titleBGMTimer); _titleBGMTimer = null; }
+  _titleBGMNodes.forEach(n => { try { n.stop(0); } catch(e) {} });
+  _titleBGMNodes = [];
+}
+
+function _titleBGMLoop() {
+  if (!_titleBGMRunning || !audioCtx) return;
+  const t   = audioCtx.currentTime;
+  const bpm = 132;
+  const e   = 60 / bpm / 2; // 8分音符
+
+  // ── メロディー（サイン波・キラキラ感）──────────────────
+  // Key: C major  2小節ループ（16×8分 ≈ 3.6秒）
+  // C arpeggio up/down → Am→F→G resolve
+  const mel = [
+    // 小節1: C major アルペジオ
+    [ 0, 523.25, e*.80, .10], // C5
+    [ 1, 659.25, e*.80, .10], // E5
+    [ 2, 783.99, e*.80, .10], // G5
+    [ 3,1046.50, e*.90, .13], // C6 ★高音
+    [ 4, 880.00, e*.80, .09], // A5
+    [ 5, 783.99, e*.80, .09], // G5
+    [ 6, 659.25, e*.80, .09], // E5
+    [ 7, 523.25, e*.90, .09], // C5
+    // 小節2: Am→F→G
+    [ 8, 440.00, e*.80, .08], // A4
+    [ 9, 523.25, e*.80, .09], // C5
+    [10, 659.25, e*.80, .09], // E5
+    [11, 880.00, e*.90, .11], // A5 ★
+    [12, 698.46, e*.80, .08], // F5
+    [13, 659.25, e*.80, .08], // E5
+    [14, 587.33, e*.80, .09], // D5
+    [15, 523.25, e*1.4, .10], // C5（長め、ループ繋ぎ）
+  ];
+  // ── ベース（三角波・まろやか）────────────────────────
+  const bas = [
+    [ 0, 130.81, e*3.5, .07], // C2
+    [ 4, 110.00, e*3.5, .06], // A2
+    [ 8, 130.81, e*3.5, .07], // C2  (Am root = A, but C sounds smoother here)
+    [10, 174.61, e*1.8, .05], // F2
+    [12, 174.61, e*1.8, .05], // F2
+    [14, 196.00, e*1.8, .06], // G2
+  ];
+  // ── コードシマー（超小音量 sine・和音感）──────────────
+  const chd = [
+    [ 0, [261.63,329.63,392.00], e*7.5, .018], // C major
+    [ 8, [220.00,261.63,329.63], e*3.8, .016], // Am
+    [12, [174.61,220.00,261.63], e*1.8, .015], // F
+    [14, [196.00,246.94,293.66], e*1.8, .016], // G
+  ];
+
+  const loopSec = 16 * e;
+
+  const schedNote = (freq, st, dur, vol, type='sine') => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t + st);
+    g.gain.linearRampToValueAtTime(vol, t + st + .012);
+    g.gain.exponentialRampToValueAtTime(.001, t + st + dur);
+    o.start(t + st); o.stop(t + st + dur + .05);
+    _titleBGMNodes.push(o);
+  };
+
+  for (const [idx, freq, dur, vol] of mel)   schedNote(freq, idx*e, dur, vol);
+  for (const [idx, freq, dur, vol] of bas)   schedNote(freq, idx*e, dur, vol, 'triangle');
+  for (const [idx, freqs, dur, vol] of chd)
+    freqs.forEach(f => schedNote(f, idx*e, dur, vol));
+
+  _titleBGMTimer = setTimeout(() => {
+    _titleBGMNodes = [];
+    _titleBGMLoop();
+  }, (loopSec - .04) * 1000);
 }
 
 // ── Input ─────────────────────────────────
@@ -699,7 +789,7 @@ function initGame(stage=1) {
   P.invTimer=0; P.walkT=0; P.dancing=false; P.danceT=0;
   cam.x=0;
   particles=[]; floatTxts=[];
-  stopBGM();
+  stopBGM(); stopTitleBGM();
   { const s1hint = costumeType===1 ? '← → 移動 | Space/↑ ジャンプ | B 星を発射！ | 音符5つでダンス！'
                  : costumeType===2 ? '← → 移動 | Space/↑ ジャンプ | B 剣を振る！ | 音符5つでダンス！'
                  : '← → / WASD で移動  |  Space / ↑ でジャンプ  |  音符を5つ集めるとダンス！  |  敵を踏んでやっつけよう！';
@@ -6078,12 +6168,12 @@ function update(){
   }
   if(state==='win'){
     winTimer++;
-    if(winTimer>120&&(just['Space']||just['Enter'])){ stopBGM(); state='select'; selectStep='char'; }
+    if(winTimer>120&&(just['Space']||just['Enter'])){ stopBGM(); state='select'; selectStep='char'; startTitleBGM(); }
     return;
   }
   if(state==='gameover'){
     gameoverTimer++;
-    if(gameoverTimer>80&&(just['Space']||just['Enter'])){ state='select'; selectStep='char'; }
+    if(gameoverTimer>80&&(just['Space']||just['Enter'])){ state='select'; selectStep='char'; startTitleBGM(); }
     return;
   }
   if(state==='win'||state==='gameover') return;
