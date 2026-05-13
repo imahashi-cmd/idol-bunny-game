@@ -479,15 +479,22 @@ function pollGamepad() {
         const cA = S6_KEYS[n.laneA], cB = S6_KEYS[n.laneB];
         const nowBoth = cur[cA] && cur[cB];
         const prevBoth = gpPrev[cA] && gpPrev[cB];
-        if (nowBoth && !prevBoth) s6StartNote(n.lane, n.freq); // 両方同時押し開始
+        if (nowBoth && !prevBoth) { s6StopNote(n.laneA); s6StopNote(n.laneB); s6StartNote(n.lane, n.freq); } // 個別音を止めてからコード音開始
         if (!nowBoth && prevBoth) s6StopNote(n.lane);          // どちらか離した
       }
     }
-    // 通常レーンキーのstart/stop
+    // 通常レーンキーのstart/stop（コードの両方が押されている場合は個別音を出さない）
     for (const code of Object.keys(cur)) {
       if (!gpPrev[code]) {
         const li = S6_KEYS.indexOf(code);
-        if (li !== -1) s6StartNote(li);
+        if (li !== -1) {
+          const inChord = s6Notes && s6Notes.some(n =>
+            n.isChord && n.state !== 'miss' &&
+            (n.laneA===li || n.laneB===li) &&
+            cur[S6_KEYS[n.laneA]] && cur[S6_KEYS[n.laneB]]
+          );
+          if (!inChord) s6StartNote(li);
+        }
       }
     }
     for (const code of Object.keys(gpPrev)) {
@@ -516,6 +523,8 @@ document.addEventListener('keydown', e=>{
       // コードノートの片方を押したとき、もう片方が既に押されていれば和音スタート
       const cn=s6Notes&&s6Notes.find(n=>n.isChord&&n.state!=='miss'&&(n.laneA===li||n.laneB===li));
       if(cn&&keys[S6_KEYS[cn.laneA===li?cn.laneB:cn.laneA]]){
+        // 両方押された → 先に鳴っていた個別音を止めてコード音スタート
+        s6StopNote(cn.laneA===li ? cn.laneB : cn.laneA);
         s6StartNote(cn.lane, cn.freq);
       } else {
         s6StartNote(li);
