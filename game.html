@@ -604,8 +604,9 @@ canvas.addEventListener('touchcancel', e=>{
 
 // ── State ─────────────────────────────────
 let state = 'select';  // select | play | dance_flash | win | gameover
-let charType = 'pink'; // pink | white
-let startStage = 1;   // 1 | 2 | 3
+let charType = 'pink';      // pink | white
+let startStage = 1;         // 1〜6
+let selectStep = 'char';    // 'char' | 'stage'
 let costumeType = 0;      // 0=デフォルト 1=魔法少女 2=メイド
 let costumeSelectIdx = 0; // 衣装部屋での選択中インデックス
 let score = 0;
@@ -5215,7 +5216,7 @@ function drawSelectScreen(){
   selectAnim+=0.04;
   drawTitleBG();
 
-  // Title
+  // タイトル（共通）
   ctx.save();
   const ts=1+Math.sin(selectAnim)*0.025;
   ctx.translate(W/2,0); ctx.scale(ts,ts);
@@ -5223,128 +5224,166 @@ function drawSelectScreen(){
   ctx.strokeStyle='#FF1493'; ctx.lineWidth=5;
   ctx.strokeText('アイドルうさぎ大冒険！',0,72);
   ctx.fillStyle='#FFD700'; ctx.fillText('アイドルうさぎ大冒険！',0,72);
-  ctx.font='20px Arial'; ctx.fillStyle='#FFB6C1';
-  ctx.fillText('キャラクターを選んでね！',0,110);
   ctx.restore();
 
-  // Floating notes decoration
-  for(let i=0;i<7;i++){
+  // ステップインジケーター
+  ctx.save();
+  ctx.textAlign='center'; ctx.font='bold 15px Arial';
+  [[1,'キャラクター選択',selectStep==='char'],[2,'ステージ選択',selectStep==='stage']].forEach(([n,lbl,active],i)=>{
+    const x=W/2+(i===0?-130:130);
+    ctx.fillStyle=active?'#FFD700':'#666';
+    ctx.beginPath(); ctx.arc(x,104,13,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=active?'#222':'#999';
+    ctx.font='bold 13px Arial'; ctx.fillText(n,x,109);
+    ctx.fillStyle=active?'#FFD700':'#555';
+    ctx.font=`${active?'bold ':''}13px Arial`;
+    ctx.fillText(lbl,x,128);
+  });
+  // ステップ間の線
+  ctx.strokeStyle='#555'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W/2-116,104); ctx.lineTo(W/2+116,104); ctx.stroke();
+  ctx.restore();
+
+  // 浮遊する音符
+  for(let i=0;i<5;i++){
     ctx.save();
-    ctx.translate(60+i*120,155+Math.sin(selectAnim*2+i)*16);
+    ctx.translate(80+i*160,160+Math.sin(selectAnim*2+i)*12);
     ctx.rotate(Math.sin(selectAnim+i)*0.3);
-    drawNote(0,0,8,`rgba(255,215,0,${0.3+Math.abs(Math.sin(selectAnim+i))*0.5})`);
+    drawNote(0,0,7,`rgba(255,215,0,${0.25+Math.abs(Math.sin(selectAnim+i))*0.4})`);
     ctx.restore();
   }
 
-  // Character panels
-  const drawPanel=(cx,type,label,sub,selected)=>{
+  if(selectStep==='char'){
+    // ── ステップ１：キャラクター選択 ──
     ctx.save();
-    ctx.translate(cx,290);
-    if(selected){
-      ctx.shadowColor=type==='pink'?'#FF69B4':'#87CEEB';
-      ctx.shadowBlur=35;
-      ctx.fillStyle=type==='pink'?'rgba(255,105,180,0.18)':'rgba(135,206,235,0.18)';
-      ctx.beginPath(); ctx.arc(0,0,72,0,Math.PI*2); ctx.fill();
-      ctx.shadowBlur=0;
-    }
-    const fn = type==='pink'?drawPink:drawWhite;
-    fn(0,18,1,selectAnim,false,selected,selectAnim);
-    ctx.font='bold 18px Arial'; ctx.textAlign='center';
-    ctx.fillStyle=selected?(type==='pink'?'#FF69B4':'#87CEEB'):'#ccc';
-    ctx.fillText(label,0,82);
-    ctx.font='13px Arial'; ctx.fillStyle='#bbb'; ctx.fillText(sub,0,101);
-    if(selected){ ctx.font='bold 14px Arial'; ctx.fillStyle='#FFD700'; ctx.fillText('★ SELECT ★',0,120); }
+    ctx.font='20px Arial'; ctx.textAlign='center'; ctx.fillStyle='#FFB6C1';
+    ctx.fillText('キャラクターを選んでね！',W/2,158);
     ctx.restore();
-  };
 
-  drawPanel(200,'pink','ぴな','元気いっぱい！',charType==='pink');
-  drawPanel(600,'white','うしゃい','ふわふわ上品！',charType==='white');
+    const drawPanel=(cx,type,label,sub,selected)=>{
+      ctx.save();
+      ctx.translate(cx,310);
+      if(selected){
+        ctx.shadowColor=type==='pink'?'#FF69B4':'#87CEEB'; ctx.shadowBlur=35;
+        ctx.fillStyle=type==='pink'?'rgba(255,105,180,0.18)':'rgba(135,206,235,0.18)';
+        ctx.beginPath(); ctx.arc(0,0,80,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+      }
+      const fn=type==='pink'?drawPink:drawWhite;
+      fn(0,18,1,selectAnim,false,selected,selectAnim);
+      ctx.font='bold 20px Arial'; ctx.textAlign='center';
+      ctx.fillStyle=selected?(type==='pink'?'#FF69B4':'#87CEEB'):'#ccc';
+      ctx.fillText(label,0,90);
+      ctx.font='14px Arial'; ctx.fillStyle='#bbb'; ctx.fillText(sub,0,110);
+      if(selected){ ctx.font='bold 15px Arial'; ctx.fillStyle='#FFD700'; ctx.fillText('★ SELECT ★',0,132); }
+      ctx.restore();
+    };
+    drawPanel(220,'pink','ぴな','元気いっぱい！',charType==='pink');
+    drawPanel(580,'white','うしゃい','ふわふわ上品！',charType==='white');
 
-  // Arrow hint
-  ctx.fillStyle='#FFD700'; ctx.font='26px Arial'; ctx.textAlign='center';
-  const ab=Math.sin(selectAnim*4)*5;
-  ctx.fillText(charType==='white'?'◄ ピンク':'ロップ ►', W/2, 290+ab);
+    // 矢印ヒント
+    const ab=Math.sin(selectAnim*4)*5;
+    ctx.fillStyle='#FFD700'; ctx.font='28px Arial'; ctx.textAlign='center';
+    ctx.fillText('◄                          ►',W/2,310+ab);
 
-  // ── ステージ選択 UI ──
-  ctx.save();
-  ctx.font='bold 18px Arial'; ctx.textAlign='center';
-  ctx.fillStyle='#FFD700';
-  ctx.fillText('スタートステージを選んでね！', W/2, 390);
-
-  const stageLabels=[
-    {n:1, label:'STAGE 1', sub:'アイドルの道'},
-    {n:2, label:'STAGE 2', sub:'ダンスホールデビュー！'},
-    {n:3, label:'STAGE 3', sub:'パディントンを倒せ！'},
-    {n:4, label:'STAGE 4', sub:'爆弾迷路！'},
-    {n:5, label:'STAGE 5', sub:'ドンキーコング！'},
-    {n:6, label:'STAGE 6', sub:'音ゲー！'},
-  ];
-  const sw=105, sh=52, gap=10;
-  const totalW=stageLabels.length*(sw+gap)-gap;
-  const sx0=W/2-totalW/2;
-  stageLabels.forEach(({n,label,sub},i)=>{
-    const bx=sx0+i*(sw+gap), by=408;
-    const sel=startStage===n;
-    ctx.save();
-    if(sel){
-      ctx.shadowColor='#FFD700'; ctx.shadowBlur=18;
-      const sg=ctx.createLinearGradient(bx,by,bx,by+sh);
-      sg.addColorStop(0,'#FF1493'); sg.addColorStop(1,'#C0006A');
-      ctx.fillStyle=sg;
-    } else {
-      ctx.fillStyle='rgba(255,255,255,0.10)';
-    }
-    ctx.beginPath(); ctx.roundRect(bx,by,sw,sh,12); ctx.fill();
-    ctx.strokeStyle=sel?'#FFD700':'#888'; ctx.lineWidth=sel?2.5:1.5;
-    ctx.beginPath(); ctx.roundRect(bx,by,sw,sh,12); ctx.stroke();
-    ctx.shadowBlur=0;
-    // ラベル（STAGE N）
-    ctx.fillStyle=sel?'#FFD700':'#ddd';
-    ctx.font=`bold ${sel?17:15}px Arial`; ctx.textAlign='center';
-    ctx.fillText(label, bx+sw/2, by+20);
-    // サブラベル：枠幅(sw-10)に収まるようフォントサイズを自動縮小
-    ctx.fillStyle=sel?'#FFB6C1':'#aaa';
-    const maxTW=sw-10;
-    let subFs=12;
-    ctx.font=`${subFs}px Arial`;
-    if(ctx.measureText(sub).width>maxTW){
-      subFs=Math.floor(subFs*maxTW/ctx.measureText(sub).width);
-      ctx.font=`${subFs}px Arial`;
-    }
-    ctx.fillText(sub, bx+sw/2, by+38);
-    if(sel){
-      ctx.fillStyle='#FFD700'; ctx.font='bold 11px Arial';
-      ctx.fillText('▼ 選択中 ▼', bx+sw/2, by+sh+14);
-    }
-    ctx.restore();
-  });
-  ctx.restore();
-
-  if(isTouchDevice){
-    // Mobile: big start button
-    const bx=W/2, by=510, bw=220, bh=48, br=24;
+    // 決定ボタン案内
     const pulse=0.75+Math.abs(Math.sin(selectAnim*3))*0.25;
-    ctx.save();
-    ctx.globalAlpha=pulse;
-    const bg=ctx.createLinearGradient(bx-bw/2,by-bh/2,bx+bw/2,by+bh/2);
+    ctx.save(); ctx.globalAlpha=pulse;
+    const bw=220,bh=44; const bx=W/2-bw/2,by=456;
+    const bg=ctx.createLinearGradient(bx,by,bx+bw,by+bh);
     bg.addColorStop(0,'#FF1493'); bg.addColorStop(1,'#FF69B4');
     ctx.fillStyle=bg;
-    ctx.beginPath();
-    ctx.roundRect(bx-bw/2,by-bh/2,bw,bh,br);
-    ctx.fill();
-    ctx.strokeStyle='#FFD700'; ctx.lineWidth=2.5;
-    ctx.beginPath(); ctx.roundRect(bx-bw/2,by-bh/2,bw,bh,br); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,22); ctx.fill();
+    ctx.strokeStyle='#FFD700'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,22); ctx.stroke();
     ctx.globalAlpha=1;
-    ctx.fillStyle='#fff'; ctx.font='bold 22px Arial'; ctx.textAlign='center';
-    ctx.fillText('タップして開始！',bx,by+8);
+    ctx.fillStyle='#fff'; ctx.font='bold 18px Arial'; ctx.textAlign='center';
+    ctx.fillText(isTouchDevice?'タップして決定！':'Aボタン / Space で決定！',W/2,by+28);
     ctx.restore();
-    // Left/right tap hint
-    ctx.fillStyle='rgba(255,182,193,0.7)'; ctx.font='13px Arial'; ctx.textAlign='center';
-    ctx.fillText('左タップ：ぴな　　右タップ：うしゃい',W/2,555);
-    ctx.fillText('ステージパネルをタップで選択',W/2,572);
+
   } else {
-    ctx.fillStyle='#FFB6C1'; ctx.font='16px Arial'; ctx.textAlign='center';
-    ctx.fillText('← → でキャラ選択　　1〜5 でステージ選択　　Spaceで決定！',W/2,515);
+    // ── ステップ２：ステージ選択 ──
+    ctx.save();
+    ctx.font='20px Arial'; ctx.textAlign='center'; ctx.fillStyle='#FFB6C1';
+    ctx.fillText('ステージを選んでね！',W/2,158);
+    ctx.restore();
+
+    const stageLabels=[
+      {n:1,label:'STAGE 1',sub:'アイドルの道'},
+      {n:2,label:'STAGE 2',sub:'ダンスホールデビュー！'},
+      {n:3,label:'STAGE 3',sub:'スターシューター'},
+      {n:4,label:'STAGE 4',sub:'爆弾迷路'},
+      {n:5,label:'STAGE 5',sub:'ドンキーコング'},
+      {n:6,label:'STAGE 6',sub:'音ゲー'},
+    ];
+    const sw=118,sh=62,gap=8;
+    const totalW=stageLabels.length*(sw+gap)-gap;
+    const sx0=W/2-totalW/2;
+    stageLabels.forEach(({n,label,sub},i)=>{
+      const bx=sx0+i*(sw+gap),by=200;
+      const sel=startStage===n;
+      ctx.save();
+      if(sel){
+        ctx.shadowColor='#FFD700'; ctx.shadowBlur=20;
+        const sg=ctx.createLinearGradient(bx,by,bx,by+sh);
+        sg.addColorStop(0,'#FF1493'); sg.addColorStop(1,'#C0006A');
+        ctx.fillStyle=sg;
+      } else { ctx.fillStyle='rgba(255,255,255,0.10)'; }
+      ctx.beginPath(); ctx.roundRect(bx,by,sw,sh,12); ctx.fill();
+      ctx.strokeStyle=sel?'#FFD700':'#666'; ctx.lineWidth=sel?2.5:1.5;
+      ctx.beginPath(); ctx.roundRect(bx,by,sw,sh,12); ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.fillStyle=sel?'#FFD700':'#ddd';
+      ctx.font=`bold ${sel?17:15}px Arial`; ctx.textAlign='center';
+      ctx.fillText(label,bx+sw/2,by+24);
+      ctx.fillStyle=sel?'#FFB6C1':'#aaa'; ctx.font='12px Arial';
+      ctx.fillText(sub,bx+sw/2,by+44);
+      if(sel){
+        ctx.fillStyle='#FFD700'; ctx.font='bold 11px Arial';
+        ctx.fillText('▼ 選択中',bx+sw/2,by+sh+16);
+      }
+      ctx.restore();
+    });
+
+    // 選択中ステージの大きな説明カード
+    const cur=stageLabels[startStage-1];
+    ctx.save();
+    const cy=340, cw=360, ch=80;
+    const cg=ctx.createLinearGradient(W/2-cw/2,cy,W/2+cw/2,cy+ch);
+    cg.addColorStop(0,'rgba(255,20,147,0.25)'); cg.addColorStop(1,'rgba(192,0,106,0.25)');
+    ctx.fillStyle=cg; ctx.strokeStyle='#FFD700'; ctx.lineWidth=2;
+    ctx.shadowColor='#FFD700'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.roundRect(W/2-cw/2,cy,cw,ch,18); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#FFD700'; ctx.font='bold 26px Arial'; ctx.textAlign='center';
+    ctx.fillText(cur.label,W/2,cy+34);
+    ctx.fillStyle='#FFB6C1'; ctx.font='16px Arial';
+    ctx.fillText(cur.sub,W/2,cy+60);
+    ctx.restore();
+
+    // 左右矢印
+    const ab=Math.sin(selectAnim*4)*5;
+    ctx.fillStyle='#FFD700'; ctx.font='30px Arial'; ctx.textAlign='center';
+    ctx.fillText('◄',W/2-200,340+ab);
+    ctx.fillText('►',W/2+200,340+ab);
+
+    // 決定ボタン案内
+    const pulse=0.75+Math.abs(Math.sin(selectAnim*3))*0.25;
+    ctx.save(); ctx.globalAlpha=pulse;
+    const bw=220,bh=44; const bx=W/2-bw/2,by=440;
+    const bg=ctx.createLinearGradient(bx,by,bx+bw,by+bh);
+    bg.addColorStop(0,'#FF1493'); bg.addColorStop(1,'#FF69B4');
+    ctx.fillStyle=bg;
+    ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,22); ctx.fill();
+    ctx.strokeStyle='#FFD700'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,22); ctx.stroke();
+    ctx.globalAlpha=1;
+    ctx.fillStyle='#fff'; ctx.font='bold 18px Arial'; ctx.textAlign='center';
+    ctx.fillText(isTouchDevice?'タップしてスタート！':'Aボタン / Space でスタート！',W/2,by+28);
+    ctx.restore();
+
+    // 戻るヒント
+    ctx.fillStyle='#888'; ctx.font='13px Arial'; ctx.textAlign='center';
+    ctx.fillText(isTouchDevice?'':'← Escape でキャラ選択に戻る',W/2,496);
   }
 }
 
@@ -5710,15 +5749,28 @@ function loseLife(){
 
 function update(){
   if(state==='select'){
-    if(just['ArrowLeft']||just['KeyA']) charType='pink';
-    if(just['ArrowRight']||just['KeyD']) charType='white';
-    if(just['Digit1']||just['Numpad1']) startStage=1;
-    if(just['Digit2']||just['Numpad2']) startStage=2;
-    if(just['Digit3']||just['Numpad3']) startStage=3;
-    if(just['Digit4']||just['Numpad4']) startStage=4;
-    if(just['Digit5']||just['Numpad5']) startStage=5;
-    if(just['Digit6']||just['Numpad6']) startStage=6;
-    if(just['Space']||just['Enter']){ ensureAudio(); initGame(startStage); }
+    if(selectStep==='char'){
+      // ステップ１：キャラクター選択
+      if(just['ArrowLeft']||just['KeyA']||just['KeyD']&&charType==='white') charType='pink';
+      if(just['ArrowRight']||just['KeyD']||just['KeyA']&&charType==='pink') charType='white';
+      // 左右で交互切替
+      if(just['ArrowLeft']) charType='pink';
+      if(just['ArrowRight']) charType='white';
+      if(just['Space']||just['Enter']){ ensureAudio(); selectStep='stage'; }
+    } else {
+      // ステップ２：ステージ選択
+      if(just['ArrowLeft']||just['KeyA'])  startStage=startStage>1?startStage-1:6;
+      if(just['ArrowRight']||just['KeyD']) startStage=startStage<6?startStage+1:1;
+      // 数字キーで直接選択（キーボード用）
+      if(just['Digit1']||just['Numpad1']) startStage=1;
+      if(just['Digit2']||just['Numpad2']) startStage=2;
+      if(just['Digit3']||just['Numpad3']) startStage=3;
+      if(just['Digit4']||just['Numpad4']) startStage=4;
+      if(just['Digit5']||just['Numpad5']) startStage=5;
+      if(just['Digit6']||just['Numpad6']) startStage=6;
+      if(just['Space']||just['Enter']){ ensureAudio(); initGame(startStage); }
+      if(just['Escape']) selectStep='char'; // Bで戻る
+    }
     return;
   }
   if(state==='stage_clear'){
@@ -5738,12 +5790,12 @@ function update(){
   }
   if(state==='win'){
     winTimer++;
-    if(winTimer>120&&(just['Space']||just['Enter'])){ stopBGM(); state='select'; }
+    if(winTimer>120&&(just['Space']||just['Enter'])){ stopBGM(); state='select'; selectStep='char'; }
     return;
   }
   if(state==='gameover'){
     gameoverTimer++;
-    if(gameoverTimer>80&&(just['Space']||just['Enter'])){ state='select'; }
+    if(gameoverTimer>80&&(just['Space']||just['Enter'])){ state='select'; selectStep='char'; }
     return;
   }
   if(state==='win'||state==='gameover') return;
