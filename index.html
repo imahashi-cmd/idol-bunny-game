@@ -353,16 +353,9 @@ function pollGamepad() {
   const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
   const gp = Array.from(gamepads).find(g => g && g.connected);
 
-  // 前フレームにゲームパッドが押していたキーを解放
+  // 前フレームにゲームパッドが押していたキーを解放（キーボード優先）
   for (const key of Object.keys(gpPrev)) {
-    if (gpPrev[key] && !keys[key + '_kb']) {
-      delete keys[key];
-      // ステージ6：レーンボタン離したら持続音をストップ
-      if (currentStage === 6 && state === 'play') {
-        const li = S6_KEYS.indexOf(key);
-        if (li !== -1) s6StopNote(li);
-      }
-    }
+    if (gpPrev[key] && !keys[key + '_kb']) delete keys[key];
   }
 
   if (!gp) { gpPrev = {}; return; }
@@ -379,16 +372,27 @@ function pollGamepad() {
     if (gp.buttons[bi] && gp.buttons[bi].pressed) cur[code] = true;
   }
 
-  // keys/just に反映
-  for (const code of Object.keys(cur)) {
-    if (!gpPrev[code]) {
-      just[code] = true; // 今フレームで初めて押した
-      // ステージ6：レーンボタン押したら持続音をスタート
-      if (currentStage === 6 && state === 'play') {
+  // ステージ6 持続音：curが確定してから gpPrev と比較して押下/離しを検出
+  if (currentStage === 6 && state === 'play') {
+    // 今フレームで初めて押したレーンキー → 持続音スタート
+    for (const code of Object.keys(cur)) {
+      if (!gpPrev[code]) {
         const li = S6_KEYS.indexOf(code);
         if (li !== -1) s6StartNote(li);
       }
     }
+    // 今フレームで離したレーンキー → 持続音ストップ
+    for (const code of Object.keys(gpPrev)) {
+      if (!cur[code]) {
+        const li = S6_KEYS.indexOf(code);
+        if (li !== -1) s6StopNote(li);
+      }
+    }
+  }
+
+  // keys/just に反映
+  for (const code of Object.keys(cur)) {
+    if (!gpPrev[code]) just[code] = true; // 今フレームで初めて押した
     keys[code] = true;
   }
   gpPrev = cur;
