@@ -81,9 +81,15 @@ const WALK_SPD = 4.2;
 
 // ── Audio (Web Audio API) ──────────────────
 let audioCtx = null;
+// 起動直後に AudioContext を作成（Mac アプリ/WKWebView では制限なし）
+try {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+} catch(e) {}
 function ensureAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 }
 function beep(freq, dur, vol=0.18, type='sine', delay=0) {
   if (!audioCtx) return;
@@ -6125,8 +6131,11 @@ function loseLife(){
 }
 
 function update(){
-  // タイトル画面BGM：audioCtx が準備できたら毎フレーム確認して起動
-  if(state==='select' && audioCtx && !_titleBGMRunning) startTitleBGM();
+  // タイトル画面BGM：audioCtx が running 状態になり次第起動
+  if(state==='select' && audioCtx && !_titleBGMRunning){
+    if(audioCtx.state==='running') startTitleBGM();
+    else if(audioCtx.state==='suspended') audioCtx.resume();
+  }
 
   if(state==='select'){
     if(selectStep==='char'){
