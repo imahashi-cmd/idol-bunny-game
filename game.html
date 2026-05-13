@@ -4266,129 +4266,93 @@ function drawS6SongClear(){
   ctx.restore();
 }
 
-// ── グランドピアノシーン（ノートレーン背後の装飾）──────────────
+// ── グランドピアノシーン（横向きに座るキャラ＋ピアノ）──────────
 function drawS6CharScene(){
-  const t = s6Timer;
-  const cx = W/2;
+  const t   = s6Timer;
+  // ピアノ前面のX（鍵盤が手前に来る側）
+  const pfX = W/2 - 8;   // 400-8=392
+  const pdep = 132;       // ピアノの奥行き（左方向）
+  const keyY = 228;       // 鍵盤面のY
+  const bodyH = 52;       // 本体高さ
 
-  // ── グランドピアノ本体 ──────────────────────────────
-  const py = 228;          // ピアノ鍵盤部の上端 Y
-  const pkW = 216;         // 鍵盤横幅
-  const pkH = 30;          // 鍵盤の高さ
-  const pkX = cx - pkW/2;  // 鍵盤左端 X
-  const bodyH = 56;        // 本体高さ
-
-  // 蓋（開いた状態：奥へ傾いたパネル）
+  // ── ピアノ（横から見た形） ───────────────────────────
+  // 蓋（上に開いた状態：奥側へ傾く台形）
   ctx.save();
-  const lidG = ctx.createLinearGradient(pkX, py-4, pkX+pkW+20, py-72);
-  lidG.addColorStop(0,'#111'); lidG.addColorStop(0.5,'#1e1e1e'); lidG.addColorStop(1,'#0a0a0a');
-  ctx.fillStyle = lidG;
+  const lidG=ctx.createLinearGradient(pfX-pdep-20,keyY-58,pfX+4,keyY);
+  lidG.addColorStop(0,'#0a0a0a'); lidG.addColorStop(0.6,'#1c1c1c'); lidG.addColorStop(1,'#111');
+  ctx.fillStyle=lidG;
   ctx.beginPath();
-  ctx.moveTo(pkX-4,    py-3);
-  ctx.lineTo(pkX+pkW+4, py-3);
-  ctx.lineTo(pkX+pkW+28, py-72);
-  ctx.lineTo(pkX-28,   py-72);
+  ctx.moveTo(pfX-pdep-6, keyY-2);
+  ctx.lineTo(pfX+4,       keyY-2);
+  ctx.lineTo(pfX-14,      keyY-58);  // 右後上
+  ctx.lineTo(pfX-pdep-28, keyY-58);  // 左後上
   ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1.2; ctx.stroke();
   ctx.restore();
 
-  // ピアノ本体（鍵盤の下の黒い箱）
+  // 本体（鍵盤の下の黒い箱）
   ctx.save();
-  const bodyG = ctx.createLinearGradient(pkX,py+pkH,pkX,py+pkH+bodyH);
-  bodyG.addColorStop(0,'#1c1c1c'); bodyG.addColorStop(1,'#050505');
-  ctx.fillStyle = bodyG;
-  ctx.beginPath(); ctx.roundRect(pkX-9, py+pkH, pkW+18, bodyH, [0,0,10,10]); ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1; ctx.stroke();
+  const bg=ctx.createLinearGradient(pfX-pdep,keyY,pfX-pdep,keyY+bodyH);
+  bg.addColorStop(0,'#1a1a1a'); bg.addColorStop(1,'#030303');
+  ctx.fillStyle=bg;
+  ctx.beginPath(); ctx.roundRect(pfX-pdep-8,keyY,pdep+12,bodyH,[0,0,8,8]); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1; ctx.stroke();
   ctx.restore();
 
-  // 脚（3本）
-  ctx.fillStyle='#080808';
-  [[pkX+2,20],[pkX+pkW-12,20],[cx-5,14]].forEach(([lx,lh])=>{
-    ctx.beginPath(); ctx.roundRect(lx,py+pkH+bodyH,10,lh,[0,0,4,4]); ctx.fill();
-  });
-
-  // ── ミニ鍵盤（グランドピアノ上の鍵盤、ゲーム操作と独立した装飾） ──
-  const numW=8, wkW=pkW/numW;
-  const anyL=s6Flash[0]||s6Flash[1]||s6Flash[2]||s6Flash[3];
-  const anyR=s6Flash[4]||s6Flash[5]||s6Flash[6]||s6Flash[7];
-  const mflL=s6MissFlash[0]||s6MissFlash[1]||s6MissFlash[2]||s6MissFlash[3];
-  const mflR=s6MissFlash[4]||s6MissFlash[5]||s6MissFlash[6]||s6MissFlash[7];
-
-  // 鍵盤フレーム
-  ctx.save(); ctx.fillStyle='#2a1500';
-  ctx.beginPath(); ctx.roundRect(pkX-3,py-3,pkW+6,pkH+6,4); ctx.fill(); ctx.restore();
-
-  // 白鍵
-  for(let k=0;k<numW;k++){
-    const kkx=pkX+k*wkW;
-    const fl=k<4?anyL:anyR, mfl=k<4?mflL:mflR;
-    const down=fl?3:0;
-    ctx.save();
-    if(fl){ctx.shadowColor=k<4?S6_COL[1]:S6_COL[5];ctx.shadowBlur=12;}
-    const wg=ctx.createLinearGradient(kkx,py,kkx,py+pkH);
-    if(fl){wg.addColorStop(0,'#fffce0');wg.addColorStop(1,'#ffd040');}
-    else if(mfl){wg.addColorStop(0,'#ffe8e8');wg.addColorStop(1,'#ffaaaa');}
-    else{wg.addColorStop(0,'#f8f8ee');wg.addColorStop(1,'#d0d0b8');}
-    ctx.fillStyle=wg;
-    ctx.beginPath(); ctx.roundRect(kkx+1,py,wkW-2,pkH+down,[0,0,5,5]); ctx.fill();
-    ctx.strokeStyle='rgba(0,0,0,0.09)'; ctx.lineWidth=0.8;
-    ctx.beginPath(); ctx.moveTo(kkx+wkW-1,py+5); ctx.lineTo(kkx+wkW-1,py+pkH-5); ctx.stroke();
-    ctx.shadowBlur=0; ctx.restore();
-  }
-  // 黒鍵（5本: C# D# F# G# Bb）
-  const bkW2=wkW*0.52, bkH2=pkH*0.60;
-  [0,1,3,4,5].forEach(wi=>{
-    const bx=pkX+(wi+1)*wkW-bkW2/2;
-    const fl=(wi===5)?(s6Flash[5]>0&&s6Flash[6]>0?1:0):0;
-    ctx.save();
-    if(fl){ctx.shadowColor='#CC44FF';ctx.shadowBlur=8;}
-    ctx.fillStyle=fl?'#5566aa':'#1a1a1a';
-    ctx.beginPath(); ctx.roundRect(bx,py,bkW2,bkH2+( fl?2:0),[0,0,3,3]); ctx.fill();
-    ctx.shadowBlur=0; ctx.restore();
-  });
-
-  // ── キャラクター ──────────────────────────────────
-  const charScale=1.3;
-  const charCY=py-36;                  // キャラ中心（ピアノ鍵盤のすぐ上）
-  const charBop=Math.sin(t*0.12)*2.5;  // 小さく揺れる
-
-  // 肩ワールド座標
-  const sLX=cx-15*charScale, sRX=cx+15*charScale;
-  const sY=charCY+3*charScale+charBop;
-
-  // 手先の目標（ミニ鍵盤の左右）
-  const hY=py+pkH-4+(anyL||anyR?5:0);
-  const hLX=pkX+pkW*0.20+(anyL?6:0);
-  const hRX=pkX+pkW*0.80-(anyR?6:0);
-
-  const aC=charType==='pink'?'#FFB6C1':'#DEE8F8';
-
-  // 腕を描画（肘が外側に弧を描く自然な姿勢）
-  const drawArm=(sx,sy,fx,fy,pressed,toLft)=>{
-    const ex=toLft?sx-22:sx+22, ey=(sy+fy)/2-2;
-    ctx.save(); ctx.lineCap='round';
-    ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=8;
-    ctx.beginPath(); ctx.moveTo(sx,sy+1.5); ctx.quadraticCurveTo(ex,ey+1.5,fx,fy+1.5); ctx.stroke();
-    ctx.strokeStyle=aC; ctx.lineWidth=7;
-    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.quadraticCurveTo(ex,ey,fx,fy); ctx.stroke();
-    if(pressed){ctx.shadowColor=charType==='pink'?'#FF69B4':'#87CEEB';ctx.shadowBlur=10;}
-    ctx.fillStyle=aC; ctx.beginPath(); ctx.arc(fx,fy,pressed?6.5:4.5,0,Math.PI*2); ctx.fill();
-    if(pressed){
-      ctx.shadowBlur=0;
-      ctx.fillStyle='rgba(255,255,200,0.8)';
-      ctx.beginPath(); ctx.arc(fx-1.5,fy-1.5,2.5,0,Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
-  };
-  drawArm(sLX,sY,hLX,hY,!!anyL,true);
-  drawArm(sRX,sY,hRX,hY,!!anyR,false);
-
-  // キャラ本体（腕なし）
+  // 鍵盤（前面にわずかに見える白い帯）
   ctx.save();
-  ctx.translate(cx, charCY+charBop);
-  ctx.scale(charScale,charScale);
+  ctx.fillStyle='#eeeedc';
+  ctx.beginPath(); ctx.roundRect(pfX-7,keyY,9,24,[0,3,3,0]); ctx.fill();
+  ctx.fillStyle='#1a1a1a';
+  [3,9,16].forEach(dy=>{ // 黒鍵が少し見える
+    ctx.beginPath(); ctx.roundRect(pfX-6,keyY+dy,6,4,1); ctx.fill();
+  });
+  ctx.restore();
+
+  // 脚（2本）
+  ctx.fillStyle='#060606';
+  ctx.beginPath(); ctx.roundRect(pfX-pdep+2,keyY+bodyH,9,22,[0,0,3,3]); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(pfX-18,    keyY+bodyH,9,22,[0,0,3,3]); ctx.fill();
+
+  // ベンチ（キャラの右側）
+  const bx=pfX+8, bw=84;
+  ctx.save();
+  ctx.fillStyle='#2c1600';
+  ctx.beginPath(); ctx.roundRect(bx,keyY+bodyH-6,bw,12,4); ctx.fill();
+  ctx.fillStyle='#180c00';
+  [[bx+14,18],[bx+bw-23,18]].forEach(([lx,lh])=>{
+    ctx.beginPath(); ctx.roundRect(lx,keyY+bodyH+6,8,lh,[0,0,3,3]); ctx.fill();
+  });
+  ctx.restore();
+
+  // ── キャラクター（横向き・左向き・ベンチに座る姿勢） ─────
+  const sc = 1.3;
+  const charCX = pfX + 50;           // ベンチのほぼ中心
+  const charCY = keyY - 18;          // 鍵盤面より少し上
+  const charBop = Math.sin(t*0.10)*2; // ごく控えめな揺れ
+
+  // 腕：1本だけ、ピアノ鍵盤にちょこんと置く（静的・アニメなし）
+  const aC = charType==='pink'?'#FFB6C1':'#DEE8F8';
+  // 肩（facing=-1なので、画面左側の肩がピアノ側）
+  const sX = charCX - 16*sc;
+  const sY = charCY + 3*sc + charBop;
+  const hX = pfX - 3;   // 手先：鍵盤のすぐ上
+  const hY = keyY + 14;
+  ctx.save(); ctx.lineCap='round';
+  ctx.strokeStyle='rgba(0,0,0,0.13)'; ctx.lineWidth=8;
+  ctx.beginPath(); ctx.moveTo(sX,sY+1.5); ctx.lineTo(hX,hY+1.5); ctx.stroke();
+  ctx.strokeStyle=aC; ctx.lineWidth=7;
+  ctx.beginPath(); ctx.moveTo(sX,sY); ctx.lineTo(hX,hY); ctx.stroke();
+  ctx.fillStyle=aC;
+  ctx.beginPath(); ctx.arc(hX,hY,5,0,Math.PI*2); ctx.fill(); // 手（小さな丸）
+  ctx.restore();
+
+  // キャラ本体（腕なし・左向き）
+  ctx.save();
+  ctx.translate(charCX, charCY+charBop);
+  ctx.scale(sc,sc);
   const fn=charType==='pink'?drawPink:drawWhite;
-  fn(0,0,1,0,false,false,0,0,true); // hideArms=true
+  fn(0,0,-1,0,false,false,0,0,true); // facing=-1（左向き）hideArms=true
   ctx.restore();
 }
 
