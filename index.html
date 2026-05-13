@@ -4331,28 +4331,12 @@ function drawS6CharScene(){
   const charCY = keyY - 18;          // 鍵盤面より少し上
   const charBop = Math.sin(t*0.10)*2; // ごく控えめな揺れ
 
-  // 腕：1本だけ、ピアノ鍵盤にちょこんと置く（静的・アニメなし）
-  const aC = charType==='pink'?'#FFB6C1':'#DEE8F8';
-  // 肩（facing=-1なので、画面左側の肩がピアノ側）
-  const sX = charCX - 16*sc;
-  const sY = charCY + 3*sc + charBop;
-  const hX = pfX - 3;   // 手先：鍵盤のすぐ上
-  const hY = keyY + 14;
-  ctx.save(); ctx.lineCap='round';
-  ctx.strokeStyle='rgba(0,0,0,0.13)'; ctx.lineWidth=8;
-  ctx.beginPath(); ctx.moveTo(sX,sY+1.5); ctx.lineTo(hX,hY+1.5); ctx.stroke();
-  ctx.strokeStyle=aC; ctx.lineWidth=7;
-  ctx.beginPath(); ctx.moveTo(sX,sY); ctx.lineTo(hX,hY); ctx.stroke();
-  ctx.fillStyle=aC;
-  ctx.beginPath(); ctx.arc(hX,hY,5,0,Math.PI*2); ctx.fill(); // 手（小さな丸）
-  ctx.restore();
-
-  // キャラ本体（腕なし・左向き）
+  // キャラ本体（左向き・腕はステージ1と同じ通常描画）
   ctx.save();
   ctx.translate(charCX, charCY+charBop);
   ctx.scale(sc,sc);
   const fn=charType==='pink'?drawPink:drawWhite;
-  fn(0,0,-1,0,false,false,0,0,true); // facing=-1（左向き）hideArms=true
+  fn(0,0,-1,0,false,false,0); // facing=-1（左向き）、腕は通常通り
   ctx.restore();
 }
 
