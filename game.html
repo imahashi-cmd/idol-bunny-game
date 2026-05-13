@@ -335,7 +335,6 @@ const GP_MAP = [
   [14, 'ArrowLeft'],  // 十字左
   [15, 'ArrowRight'], // 十字右
   [0,  'Space'],      // A → ジャンプ/爆弾/決定
-  [1,  'KeyX'],       // B → キャンセル(ステージ6:ラ)
   [9,  'Enter'],      // Start → 決定
   [8,  'Escape'],     // Select → キャンセル
   // ステージ6 リズムレーン（左手:十字、右手:YXAB）
@@ -356,7 +355,14 @@ function pollGamepad() {
 
   // 前フレームにゲームパッドが押していたキーを解放
   for (const key of Object.keys(gpPrev)) {
-    if (gpPrev[key] && !keys[key + '_kb']) delete keys[key];
+    if (gpPrev[key] && !keys[key + '_kb']) {
+      delete keys[key];
+      // ステージ6：レーンボタン離したら持続音をストップ
+      if (currentStage === 6 && state === 'play') {
+        const li = S6_KEYS.indexOf(key);
+        if (li !== -1) s6StopNote(li);
+      }
+    }
   }
 
   if (!gp) { gpPrev = {}; return; }
@@ -375,7 +381,14 @@ function pollGamepad() {
 
   // keys/just に反映
   for (const code of Object.keys(cur)) {
-    if (!gpPrev[code]) just[code] = true; // 今フレームで初めて押した
+    if (!gpPrev[code]) {
+      just[code] = true; // 今フレームで初めて押した
+      // ステージ6：レーンボタン押したら持続音をスタート
+      if (currentStage === 6 && state === 'play') {
+        const li = S6_KEYS.indexOf(code);
+        if (li !== -1) s6StartNote(li);
+      }
+    }
     keys[code] = true;
   }
   gpPrev = cur;
@@ -3688,9 +3701,9 @@ function updateStage6(){
     if(j.life<=0) s6Judges.splice(i,1);
   }
 
-  // 自動メロディ：ノートがヒットゾーンに到達したとき感動的な音色で演奏
+  // 自動メロディ：ヒットタイムに必ず演奏（早押しで state='hit' でも鳴らす）
   for(const n of s6Notes){
-    if(n.hitTime===s6Timer && n.state!=='hit'){
+    if(n.hitTime===s6Timer){
       melodyNote(S6_FREQS[n.lane], 0.72, 0.16);
     }
   }
