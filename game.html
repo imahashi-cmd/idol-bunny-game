@@ -374,14 +374,23 @@ function pollGamepad() {
 
   // ステージ6 持続音：curが確定してから gpPrev と比較して押下/離しを検出
   if (currentStage === 6 && state === 'play') {
-    // 今フレームで初めて押したレーンキー → 持続音スタート
+    // コードノートのstart/stop検出
+    if (s6Notes) {
+      for (const n of s6Notes.filter(n => n.isChord && n.state !== 'miss')) {
+        const cA = S6_KEYS[n.laneA], cB = S6_KEYS[n.laneB];
+        const nowBoth = cur[cA] && cur[cB];
+        const prevBoth = gpPrev[cA] && gpPrev[cB];
+        if (nowBoth && !prevBoth) s6StartNote(n.lane, n.freq); // 両方同時押し開始
+        if (!nowBoth && prevBoth) s6StopNote(n.lane);          // どちらか離した
+      }
+    }
+    // 通常レーンキーのstart/stop
     for (const code of Object.keys(cur)) {
       if (!gpPrev[code]) {
         const li = S6_KEYS.indexOf(code);
         if (li !== -1) s6StartNote(li);
       }
     }
-    // 今フレームで離したレーンキー → 持続音ストップ
     for (const code of Object.keys(gpPrev)) {
       if (!cur[code]) {
         const li = S6_KEYS.indexOf(code);
@@ -404,7 +413,15 @@ document.addEventListener('keydown', e=>{
   // ステージ6：キーを押している間だけ持続音を鳴らす
   if(state==='play'&&currentStage===6){
     const li=S6_KEYS.indexOf(e.code);
-    if(li!==-1) s6StartNote(li);
+    if(li!==-1){
+      // コードノートの片方を押したとき、もう片方が既に押されていれば和音スタート
+      const cn=s6Notes&&s6Notes.find(n=>n.isChord&&n.state!=='miss'&&(n.laneA===li||n.laneB===li));
+      if(cn&&keys[S6_KEYS[cn.laneA===li?cn.laneB:cn.laneA]]){
+        s6StartNote(cn.lane, cn.freq);
+      } else {
+        s6StartNote(li);
+      }
+    }
   }
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
 });
@@ -413,7 +430,12 @@ document.addEventListener('keyup', e=>{
   // ステージ6：キーを離したら音をフェードアウト
   if(currentStage===6){
     const li=S6_KEYS.indexOf(e.code);
-    if(li!==-1) s6StopNote(li);
+    if(li!==-1){
+      s6StopNote(li);
+      // コードノートも停止
+      const cn=s6Notes&&s6Notes.find(n=>n.isChord&&(n.laneA===li||n.laneB===li));
+      if(cn) s6StopNote(cn.lane);
+    }
   }
 });
 
@@ -3556,8 +3578,8 @@ const S6_SONGS = [
       [6,0],[6.5,0],[7,1],[8,0],[9,4],[10,3],
       // ライン3: ハッピーバースデーディアーネーム (ど ど ど↑ ら ふぁ み れ)
       [12,0],[12.5,0],[13,7],[14,5],[15,3],[16,2],[17,1],
-      // ライン4: ハッピーバースデートゥーユー (ら ら ら ふぁ そ ふぁ) ※Bbをら(A)で近似
-      [19,5],[19.5,5],[20,5],[21,3],[22,4],[24,3]
+      // ライン4: ハッピーバースデートゥーユー (Bb Bb ら ふぁ そ ふぁ) ※Bb=ら+し同時押し
+      [19,[5,6]],[19.5,[5,6]],[20,5],[21,3],[22,4],[24,3]
     ],
     bass:[[0,65.41,2.8],[3,98.00,2.8],[6,65.41,2.8],[9,98.00,2.8],
           [12,65.41,2.8],[15,87.31,2.8],[18,87.31,2.8],[21,98.00,2.8]],
@@ -3603,9 +3625,9 @@ let s6CurrentFPB=60, s6CurrentGood=42, s6CurrentPerf=20;
 
 // ── ステージ6：キー長押し持続音システム ──
 const s6OscNodes={};
-function s6StartNote(lane){
+function s6StartNote(lane, freqOverride){
   if(!audioCtx||s6OscNodes[lane]) return;
-  const freq=S6_FREQS[lane];
+  const freq=freqOverride!==undefined ? freqOverride : S6_FREQS[Math.round(lane)];
   const t=audioCtx.currentTime;
   const mk=(type,f,vol,att)=>{
     const o=audioCtx.createOscillator(), g=audioCtx.createGain();
@@ -3637,6 +3659,8 @@ function s6StopNote(lane){
 }
 function s6StopAllNotes(){
   for(let i=0;i<8;i++) s6StopNote(i);
+  // コードノート（小数レーン）も停止
+  for(const k of Object.keys(s6OscNodes)) s6StopNote(Number(k));
 }
 
 function s6BuildChart(idx){
@@ -3648,11 +3672,17 @@ function s6BuildChart(idx){
   s6CurrentGood=Math.max(18, Math.round(S6_GOOD*fpb/60));
   const lastBeat=Math.max(...song.beats.map(([b])=>b));
   // 次ノートまでの間隔から保持時間を自動計算し holdEnd を付与
-  s6Notes=song.beats.map(([beat,lane],idx)=>{
+  s6Notes=song.beats.map(([beat,laneOrPair],idx)=>{
+    const isChord=Array.isArray(laneOrPair);
+    const lane=isChord?(laneOrPair[0]+laneOrPair[1])/2:laneOrPair;
+    const laneA=isChord?laneOrPair[0]:-1;
+    const laneB=isChord?laneOrPair[1]:-1;
+    // コード音の周波数：隣接レーンの幾何平均（例：ら440×し494≒Bb466Hz）
+    const freq=isChord?Math.sqrt(S6_FREQS[laneA]*S6_FREQS[laneB]):null;
     const later=song.beats.slice(idx+1).find(([b])=>b>beat);
     const durB=later ? Math.min(1.8,(later[0]-beat)*0.80) : 0.55;
     const ht=S6_LEAD+Math.round(beat*fpb);
-    return { lane, hitTime:ht, holdEnd:ht+Math.round(durB*fpb), state:'active' };
+    return { lane, laneA, laneB, isChord, freq, hitTime:ht, holdEnd:ht+Math.round(durB*fpb), state:'active' };
   });
   // ベースチャート (dur_beats→秒換算)
   s6BassChart=(song.bass||[]).map(([beat,freq,durB=3.5])=>({
@@ -3714,7 +3744,7 @@ function updateStage6(){
   // 自動メロディ：ヒットタイムに必ず演奏（早押しで state='hit' でも鳴らす）
   for(const n of s6Notes){
     if(n.hitTime===s6Timer){
-      melodyNote(S6_FREQS[n.lane], 0.72, 0.16);
+      melodyNote(n.isChord ? n.freq : S6_FREQS[n.lane], 0.72, 0.16);
     }
   }
 
@@ -3742,19 +3772,49 @@ function updateStage6(){
     if(s6Timer > n.hitTime+s6CurrentGood){
       n.state='miss';
       s6Combo=0; s6Miss++;
-      s6MissFlash[n.lane]=14;
+      if(n.isChord){ s6MissFlash[n.laneA]=14; s6MissFlash[n.laneB]=14; }
+      else { s6MissFlash[n.lane]=14; }
       const lx=S6_X0+n.lane*S6_LANE_W+S6_LANE_W/2;
       s6Judges.push({text:'MISS',color:'#FF5555',x:lx,y:S6_HIT_Y-22,life:45});
     }
   }
 
   // キー入力判定
+  // ── ① コード（同時押し）判定を先に処理 ──
+  const s6ChordUsed=new Set();
+  for(const n of s6Notes){
+    if(!n.isChord||n.state!=='active') continue;
+    const cA=S6_KEYS[n.laneA], cB=S6_KEYS[n.laneB];
+    // 片方がjust、もう片方がkeys（押されている）= 同時押し判定
+    const hit=(just[cA]&&keys[cB])||(just[cB]&&keys[cA]);
+    if(!hit) continue;
+    const d=Math.abs(s6Timer-n.hitTime);
+    if(d>s6CurrentGood) continue;
+    n.state='hit';
+    s6ChordUsed.add(n.laneA); s6ChordUsed.add(n.laneB);
+    s6Flash[n.laneA]=10; s6Flash[n.laneB]=10;
+    s6Combo++; if(s6Combo>s6MaxCombo) s6MaxCombo=s6Combo;
+    melodyNote(n.freq, 0.72, 0.16);
+    const lx=S6_X0+n.lane*S6_LANE_W+S6_LANE_W/2;
+    if(d<=s6CurrentPerf){
+      s6Score+=300; s6Perfect++;
+      s6Judges.push({text:'PERFECT!',color:'#FFD700',x:lx,y:S6_HIT_Y-44,life:55});
+      spawnParticles(lx,S6_HIT_Y,'#CC44FF',12,'star');
+    } else {
+      s6Score+=100; s6GoodCnt++;
+      s6Judges.push({text:'GOOD',color:'#44FF88',x:lx,y:S6_HIT_Y-44,life:44});
+      spawnParticles(lx,S6_HIT_Y,'#CC44FF',6,'circle');
+    }
+    score=s6Score;
+  }
+  // ── ② 通常ノート判定 ──
   S6_KEYS.forEach((code,lane)=>{
     if(!just[code]) return;
+    if(s6ChordUsed.has(lane)) return; // コードで使用済み
     s6Flash[lane]=10;
     let best=null, bestDist=Infinity;
     for(const n of s6Notes){
-      if(n.state!=='active'||n.lane!==lane) continue;
+      if(n.state!=='active'||n.isChord||n.lane!==lane) continue;
       const d=Math.abs(s6Timer-n.hitTime);
       if(d<bestDist){ bestDist=d; best=n; }
     }
@@ -4025,18 +4085,35 @@ function drawStage6(){
 
     if(hasTail) drawTail(tailTopY, headY, 0.62, null);
 
-    // ノートヘッド（円）
     const proximity=Math.max(0, 1-(S6_HIT_Y-headY)/S6_HIT_Y);
     ctx.save();
-    ctx.shadowColor=S6_COL[n.lane]; ctx.shadowBlur=6+proximity*12;
-    ctx.fillStyle=S6_COL[n.lane];
-    ctx.beginPath(); ctx.arc(lx,headY,16,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,0.45)';
-    ctx.beginPath(); ctx.arc(lx-4,headY-4,6,0,Math.PI*2); ctx.fill();
-    ctx.restore();
-    if(!hasTail){
-      ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.font='bold 14px Arial'; ctx.textAlign='center';
-      ctx.fillText('♪',lx,headY+5);
+    if(n.isChord){
+      // ── コードノート：2レーンにまたがる幅広ノートヘッド ──
+      const lxA=S6_X0+n.laneA*S6_LANE_W+S6_LANE_W/2;
+      const lxB=S6_X0+n.laneB*S6_LANE_W+S6_LANE_W/2;
+      const ew=(lxB-lxA)*0.65; // 半径（横）
+      ctx.shadowColor='#CC44FF'; ctx.shadowBlur=8+proximity*16;
+      // グラデーション
+      const cg=ctx.createLinearGradient(lxA,0,lxB,0);
+      cg.addColorStop(0,S6_COL[n.laneA]); cg.addColorStop(1,S6_COL[n.laneB]);
+      ctx.fillStyle=cg;
+      ctx.beginPath(); ctx.ellipse(lx,headY,ew,15,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.4)';
+      ctx.beginPath(); ctx.ellipse(lx-ew*0.25,headY-4,ew*0.3,5,0,0,Math.PI*2); ctx.fill();
+      // ♭マーク
+      ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.font='bold 15px serif'; ctx.textAlign='center';
+      ctx.fillText('♭',lx,headY+5);
+    } else {
+      // ── 通常ノートヘッド（円）──
+      ctx.shadowColor=S6_COL[n.lane]; ctx.shadowBlur=6+proximity*12;
+      ctx.fillStyle=S6_COL[n.lane];
+      ctx.beginPath(); ctx.arc(lx,headY,16,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.45)';
+      ctx.beginPath(); ctx.arc(lx-4,headY-4,6,0,Math.PI*2); ctx.fill();
+      if(!hasTail){
+        ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.font='bold 14px Arial'; ctx.textAlign='center';
+        ctx.fillText('♪',lx,headY+5);
+      }
     }
   }
 
