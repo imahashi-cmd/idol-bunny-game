@@ -4299,14 +4299,17 @@ function drawStage6(){
     ctx.fill();
   }
 
-  // ダンスするキャラ（レーン背景の手前・ノートより奥）
-  const bop=Math.sin(s6Timer*0.18)*10;
-  ctx.save();
-  ctx.translate(W/2, 310+bop);
-  ctx.scale(1.6,1.6);
-  const fn=charType==='pink'?drawPink:drawWhite;
-  fn(0,0,1,s6WalkT,false,true,s6WalkT*0.7);
-  ctx.restore();
+  // キャラクター（ピアノに向かう姿勢 - 腕なし、ノートより奥）
+  {
+    const bop=Math.sin(s6Timer*0.13)*3;
+    ctx.save();
+    ctx.translate(W/2, S6_HIT_Y-62+bop);
+    ctx.scale(1.4,1.4);
+    ctx.rotate(0.07); // 前傾き
+    const fn=charType==='pink'?drawPink:drawWhite;
+    fn(0,0,1,0,false,false,0,0,true); // hideArms=true
+    ctx.restore();
+  }
 
   // レーン背景
   for(let l=0;l<8;l++){
@@ -4318,12 +4321,7 @@ function drawStage6(){
     ctx.globalAlpha=1;
   }
 
-  // ヒットライン
-  ctx.save();
-  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2.5;
-  ctx.setLineDash([5,4]);
-  ctx.beginPath(); ctx.moveTo(S6_X0,S6_HIT_Y); ctx.lineTo(S6_X0+8*S6_LANE_W,S6_HIT_Y); ctx.stroke();
-  ctx.setLineDash([]); ctx.restore();
+  // ヒットライン（ピアノ鍵盤で視覚的に代替するため非表示）
 
   // ノート描画（テール付き・押下後もテールが消えずに残る）
   for(const n of s6Notes){
@@ -4405,65 +4403,124 @@ function drawStage6(){
     ctx.restore(); // ← save() に対応する restore（shadowBlur等をリセット）
   }
 
-  // レセプター（ヒットゾーン）
-  for(let l=0;l<8;l++){
-    const lx=S6_X0+l*S6_LANE_W+S6_LANE_W/2;
-    const flash=s6Flash[l]>0, mflash=s6MissFlash[l]>0;
-    ctx.save();
-    if(flash){
-      ctx.shadowColor=S6_COL[l]; ctx.shadowBlur=22;
-      ctx.fillStyle=S6_COL[l];
-    } else if(mflash){
-      ctx.fillStyle='rgba(255,60,60,0.6)';
-    } else {
-      ctx.fillStyle='rgba(255,255,255,0.18)';
-    }
-    ctx.beginPath(); ctx.arc(lx,S6_HIT_Y,18,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle=flash?'#fff':'rgba(255,255,255,0.4)';
-    ctx.lineWidth=flash?2:1; ctx.beginPath(); ctx.arc(lx,S6_HIT_Y,18,0,Math.PI*2); ctx.stroke();
-    // 音名
-    ctx.fillStyle=flash?'#fff':'rgba(255,255,255,0.75)';
-    ctx.font=`bold ${flash?12:10}px Arial`; ctx.textAlign='center';
-    ctx.fillText(S6_LABELS[l],lx,S6_HIT_Y+4);
-    ctx.restore();
-    // キー文字
-    ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='11px Arial'; ctx.textAlign='center';
-    ctx.fillText(S6_KCHAR[l],lx,S6_HIT_Y+28);
-    // ゲームパッドボタンアイコン
-    ctx.save();
-    const gpY = S6_HIT_Y + 52;
-    if(l < 4){
-      // 十字キー方向（←↓↑→）
-      const arrows = ['←','↓','↑','→'];
-      ctx.fillStyle = 'rgba(160,210,255,0.22)';
-      ctx.beginPath(); ctx.roundRect(lx-13, gpY-13, 26, 22, 5); ctx.fill();
-      ctx.strokeStyle = 'rgba(160,210,255,0.55)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.roundRect(lx-13, gpY-13, 26, 22, 5); ctx.stroke();
-      ctx.fillStyle = 'rgba(180,230,255,0.90)';
-      ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
-      ctx.fillText(arrows[l], lx, gpY+3);
-    } else {
-      // フェイスボタン（色付き丸）
-      const btnColors = ['#BB8800','#CC2020','#207730','#1844BB'];
-      const btnLabels = ['Y','B','A','X'];
-      ctx.fillStyle = btnColors[l-4];
-      ctx.beginPath(); ctx.arc(lx, gpY-2, 12, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(lx, gpY-2, 12, 0, Math.PI*2); ctx.stroke();
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
-      ctx.fillText(btnLabels[l-4], lx, gpY+2);
-    }
-    ctx.restore();
-  }
-  // GPアイコン（十字キー側）
+  // ── ピアノ鍵盤 ─────────────────────────────────────────
   {
-    const iconX = S6_X0 - 5, iconY = S6_HIT_Y + 41;
+    const pkY=S6_HIT_Y, pkH=48, bkH=28, bkW=22;
+    // ピアノフレーム（木製ケース）
     ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    ctx.font = '13px Arial'; ctx.textAlign = 'right';
-    ctx.fillText('🎮', iconX, iconY);
+    const pf=ctx.createLinearGradient(0,pkY-6,0,pkY+pkH+8);
+    pf.addColorStop(0,'#4a2800'); pf.addColorStop(1,'#1c0e00');
+    ctx.fillStyle=pf;
+    ctx.beginPath(); ctx.roundRect(S6_X0-8,pkY-6,8*S6_LANE_W+16,pkH+14,6); ctx.fill();
     ctx.restore();
+    // 白鍵（8本）
+    for(let l=0;l<8;l++){
+      const kx=S6_X0+l*S6_LANE_W+2, kw=S6_LANE_W-4;
+      const lx=S6_X0+l*S6_LANE_W+S6_LANE_W/2;
+      const fl=s6Flash[l], mfl=s6MissFlash[l], down=fl>0?3:0;
+      ctx.save();
+      if(fl>0){ctx.shadowColor=S6_COL[l];ctx.shadowBlur=24;}
+      else if(mfl>0){ctx.shadowColor='#FF3333';ctx.shadowBlur=16;}
+      const kg=ctx.createLinearGradient(kx,pkY,kx,pkY+pkH);
+      if(fl>0){
+        kg.addColorStop(0,'#fffce0');kg.addColorStop(0.6,'#ffe040');kg.addColorStop(1,'#ffb800');
+      }else if(mfl>0){
+        kg.addColorStop(0,'#ffe0e0');kg.addColorStop(1,'#ff8888');
+      }else{
+        kg.addColorStop(0,'#fafaf0');kg.addColorStop(0.7,'#e8e8d8');kg.addColorStop(1,'#c8c8b0');
+      }
+      ctx.fillStyle=kg;
+      ctx.beginPath(); ctx.roundRect(kx,pkY,kw,pkH+down,[0,0,8,8]); ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(kx+kw-1,pkY+12); ctx.lineTo(kx+kw-1,pkY+pkH-8); ctx.stroke();
+      ctx.shadowBlur=0;
+      // 音名
+      ctx.fillStyle=fl>0?'#7a3800':mfl>0?'#aa0000':'rgba(0,0,0,0.45)';
+      ctx.font=`bold ${fl>0?13:11}px Arial`; ctx.textAlign='center';
+      ctx.fillText(S6_LABELS[l],lx,pkY+pkH-5+down);
+      ctx.restore();
+    }
+    // 黒鍵（C#, D#, F#, G#, Bb）
+    [[0,1],[1,2],[3,4],[4,5],[5,6]].forEach(([la])=>{
+      const bx=S6_X0+la*S6_LANE_W+S6_LANE_W-bkW/2;
+      const fl=(la===5)?(s6Flash[5]>0&&s6Flash[6]>0?1:0):0;
+      const down=fl?2:0;
+      ctx.save();
+      if(fl){ctx.shadowColor='#CC44FF';ctx.shadowBlur=16;}
+      const bkg=ctx.createLinearGradient(bx,pkY,bx,pkY+bkH);
+      bkg.addColorStop(0,fl?'#778':'#333');bkg.addColorStop(1,fl?'#335':'#0a0a0a');
+      ctx.fillStyle=bkg;
+      ctx.beginPath(); ctx.roundRect(bx,pkY,bkW,bkH+down,[0,0,5,5]); ctx.fill();
+      ctx.shadowBlur=0; ctx.restore();
+    });
+    // キー文字 + ゲームパッドアイコン（鍵盤の下）
+    for(let l=0;l<8;l++){
+      const lx=S6_X0+l*S6_LANE_W+S6_LANE_W/2;
+      ctx.fillStyle='rgba(255,255,255,0.48)'; ctx.font='11px Arial'; ctx.textAlign='center';
+      ctx.fillText(S6_KCHAR[l],lx,pkY+pkH+15);
+      ctx.save();
+      const gpY=pkY+pkH+30;
+      if(l<4){
+        const arrows=['←','↓','↑','→'];
+        ctx.fillStyle='rgba(160,210,255,0.22)';
+        ctx.beginPath(); ctx.roundRect(lx-13,gpY-13,26,22,5); ctx.fill();
+        ctx.strokeStyle='rgba(160,210,255,0.55)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.roundRect(lx-13,gpY-13,26,22,5); ctx.stroke();
+        ctx.fillStyle='rgba(180,230,255,0.90)'; ctx.font='bold 14px Arial'; ctx.textAlign='center';
+        ctx.fillText(arrows[l],lx,gpY+3);
+      }else{
+        const btnColors=['#BB8800','#CC2020','#207730','#1844BB'];
+        const btnLabels=['Y','B','A','X'];
+        ctx.fillStyle=btnColors[l-4];
+        ctx.beginPath(); ctx.arc(lx,gpY-2,12,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.arc(lx,gpY-2,12,0,Math.PI*2); ctx.stroke();
+        ctx.fillStyle='#fff'; ctx.font='bold 12px Arial'; ctx.textAlign='center';
+        ctx.fillText(btnLabels[l-4],lx,gpY+2);
+      }
+      ctx.restore();
+    }
+    ctx.save(); ctx.fillStyle='rgba(255,255,255,0.28)';
+    ctx.font='13px Arial'; ctx.textAlign='right';
+    ctx.fillText('🎮',S6_X0-5,pkY+pkH+46); ctx.restore();
+  }
+  // ── 腕（ピアノを弾くアニメーション）──────────────────
+  {
+    const s6bop=Math.sin(s6Timer*0.13)*3;
+    const shoulderLX=W/2-21, shoulderRX=W/2+21;
+    const shoulderY=S6_HIT_Y-57+s6bop;
+    // 押鍵レーン検出（左手:0-3, 右手:4-7）
+    let lLane=-1, rLane=-1;
+    for(let l=3;l>=0;l--) if(s6Flash[l]>0){lLane=l;break;}
+    for(let l=4;l<8;l++) if(s6Flash[l]>0){rLane=l;break;}
+    if(s6Flash[5]>0&&s6Flash[6]>0){lLane=5;rLane=6;} // Bbコード
+    const lFX=lLane>=0?S6_X0+lLane*S6_LANE_W+S6_LANE_W/2:S6_X0+S6_LANE_W*1.5+S6_LANE_W/2;
+    const lFY=S6_HIT_Y+(lLane>=0?4:0);
+    const rFX=rLane>=0?S6_X0+rLane*S6_LANE_W+S6_LANE_W/2:S6_X0+S6_LANE_W*5.5+S6_LANE_W/2;
+    const rFY=S6_HIT_Y+(rLane>=0?4:0);
+    const aC=charType==='pink'?'#FFB6C1':'#DEE8F8';
+    const drawPianoArm=(sx,sy,fx,fy,pressed)=>{
+      const ex=(sx+fx)/2, ey=(sy+fy)/2-14;
+      ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+      // 影
+      ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=10;
+      ctx.beginPath(); ctx.moveTo(sx,sy+2); ctx.quadraticCurveTo(ex,ey+2,fx,fy+2); ctx.stroke();
+      // 腕本体
+      ctx.strokeStyle=aC; ctx.lineWidth=8;
+      ctx.beginPath(); ctx.moveTo(sx,sy); ctx.quadraticCurveTo(ex,ey,fx,fy); ctx.stroke();
+      // 手（丸）
+      if(pressed){ctx.shadowColor=charType==='pink'?'#FF69B4':'#87CEEB';ctx.shadowBlur=10;}
+      ctx.fillStyle=aC;
+      ctx.beginPath(); ctx.arc(fx,fy,pressed?7:5.5,0,Math.PI*2); ctx.fill();
+      if(pressed){
+        ctx.shadowBlur=0;
+        ctx.fillStyle='rgba(255,255,220,0.8)';
+        ctx.beginPath(); ctx.arc(fx-2,fy-2,3,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    };
+    drawPianoArm(shoulderLX,shoulderY,lFX,lFY,lLane>=0);
+    drawPianoArm(shoulderRX,shoulderY,rFX,rFY,rLane>=0);
   }
 
   // 判定テキスト
@@ -4555,7 +4612,7 @@ function drawNote(cx,cy,sz,color){
 }
 
 // ── Pink rabbit ───────────────────────────
-function drawPink(cx,cy,facing,wt,jumping,dancing,dt,kick=0){
+function drawPink(cx,cy,facing,wt,jumping,dancing,dt,kick=0,hideArms=false){
   ctx.save();
   ctx.translate(cx,cy);
   if(facing<0) ctx.scale(-1,1);
@@ -4611,28 +4668,30 @@ function drawPink(cx,cy,facing,wt,jumping,dancing,dt,kick=0){
   }
 
   // ── Arms
-  ctx.fillStyle='#FFB6C1';
-  if(dancing){
-    [[-15,0,-Math.PI/3],[15,0,Math.PI/3]].forEach(([tx,ty,base],i)=>{
-      ctx.save();
-      ctx.translate(tx,ty+bob);
-      ctx.rotate(base+(i===0?1:-1)*Math.sin(dt*8)*0.3);
-      ctx.beginPath(); ctx.ellipse(0,5,4,10,0,0,Math.PI*2); ctx.fill();
-      ctx.restore();
-    });
-  } else {
-    [[-15,3,1],[15,3,-1]].forEach(([tx,ty,sign],i)=>{
-      const isFront=i===1;
-      const armAng = ks>0
-        ? (isFront ? Math.PI*0.55*ks : -Math.PI*0.28*ks)
-        : (jumping?sign*0.45:Math.sin(lp*10)*0.2*sign);
-      ctx.save();
-      ctx.translate(tx,ty+bob);
-      ctx.rotate(armAng);
-      ctx.beginPath(); ctx.ellipse(0,5,4,9,0,0,Math.PI*2); ctx.fill();
-      ctx.restore();
-    });
-  }
+  if(!hideArms){
+    ctx.fillStyle='#FFB6C1';
+    if(dancing){
+      [[-15,0,-Math.PI/3],[15,0,Math.PI/3]].forEach(([tx,ty,base],i)=>{
+        ctx.save();
+        ctx.translate(tx,ty+bob);
+        ctx.rotate(base+(i===0?1:-1)*Math.sin(dt*8)*0.3);
+        ctx.beginPath(); ctx.ellipse(0,5,4,10,0,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      });
+    } else {
+      [[-15,3,1],[15,3,-1]].forEach(([tx,ty,sign],i)=>{
+        const isFront=i===1;
+        const armAng = ks>0
+          ? (isFront ? Math.PI*0.55*ks : -Math.PI*0.28*ks)
+          : (jumping?sign*0.45:Math.sin(lp*10)*0.2*sign);
+        ctx.save();
+        ctx.translate(tx,ty+bob);
+        ctx.rotate(armAng);
+        ctx.beginPath(); ctx.ellipse(0,5,4,9,0,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      });
+    }
+  } // end !hideArms
 
   // ── Upright ears
   [[-8,-0.18],[8,0.18]].forEach(([ex,tilt])=>{
@@ -4705,7 +4764,7 @@ function drawPink(cx,cy,facing,wt,jumping,dancing,dt,kick=0){
 }
 
 // ── White lop rabbit ──────────────────────
-function drawWhite(cx,cy,facing,wt,jumping,dancing,dt,kick=0){
+function drawWhite(cx,cy,facing,wt,jumping,dancing,dt,kick=0,hideArms=false){
   ctx.save();
   ctx.translate(cx,cy);
   if(facing<0) ctx.scale(-1,1);
@@ -4761,28 +4820,30 @@ function drawWhite(cx,cy,facing,wt,jumping,dancing,dt,kick=0){
   }
 
   // ── Arms
-  ctx.fillStyle='#F5F5F5';
-  if(dancing){
-    [[-15,0,-Math.PI/3],[15,0,Math.PI/3]].forEach(([tx,ty,base],i)=>{
-      ctx.save();
-      ctx.translate(tx,ty+bob);
-      ctx.rotate(base+(i===0?1:-1)*Math.sin(dt*8)*0.3);
-      ctx.beginPath(); ctx.ellipse(0,5,4,10,0,0,Math.PI*2); ctx.fill();
-      ctx.restore();
-    });
-  } else {
-    [[-15,3,1],[15,3,-1]].forEach(([tx,ty,sign],i)=>{
-      const isFront=i===1;
-      const armAng = ks>0
-        ? (isFront ? Math.PI*0.55*ks : -Math.PI*0.28*ks)
-        : (jumping?sign*0.45:Math.sin(lp*10)*0.2*sign);
-      ctx.save();
-      ctx.translate(tx,ty+bob);
-      ctx.rotate(armAng);
-      ctx.beginPath(); ctx.ellipse(0,5,4,9,0,0,Math.PI*2); ctx.fill();
-      ctx.restore();
-    });
-  }
+  if(!hideArms){
+    ctx.fillStyle='#F5F5F5';
+    if(dancing){
+      [[-15,0,-Math.PI/3],[15,0,Math.PI/3]].forEach(([tx,ty,base],i)=>{
+        ctx.save();
+        ctx.translate(tx,ty+bob);
+        ctx.rotate(base+(i===0?1:-1)*Math.sin(dt*8)*0.3);
+        ctx.beginPath(); ctx.ellipse(0,5,4,10,0,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      });
+    } else {
+      [[-15,3,1],[15,3,-1]].forEach(([tx,ty,sign],i)=>{
+        const isFront=i===1;
+        const armAng = ks>0
+          ? (isFront ? Math.PI*0.55*ks : -Math.PI*0.28*ks)
+          : (jumping?sign*0.45:Math.sin(lp*10)*0.2*sign);
+        ctx.save();
+        ctx.translate(tx,ty+bob);
+        ctx.rotate(armAng);
+        ctx.beginPath(); ctx.ellipse(0,5,4,9,0,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      });
+    }
+  } // end !hideArms
 
   // ── Lop ears (hang down)
   [[-11,-0.12],[11,0.12]].forEach(([ex,tilt],i)=>{
