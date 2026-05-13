@@ -377,8 +377,8 @@ function pollGamepad() {
     if (gp.buttons[bi] && gp.buttons[bi].pressed) cur[code] = true;
   }
 
-  // ステージ6 持続音：curが確定してから gpPrev と比較して押下/離しを検出
-  if (currentStage === 6 && state === 'play') {
+  // ステージ5（音ゲー） 持続音：curが確定してから gpPrev と比較して押下/離しを検出
+  if (currentStage === 5 && state === 'play') {
     // コードノートのstart/stop検出
     if (s6Notes) {
       for (const n of s6Notes.filter(n => n.isChord && n.state !== 'miss')) {
