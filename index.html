@@ -1952,7 +1952,7 @@ function updateStage4(){
   if(!s4IsSolid(P.x,P.y+dvy,P.w,P.h,true)) P.y+=dvy;
 
   // 爆弾設置（Space）
-  if((just['Space']||just['KeyZ'])&&s4BombCD<=0&&s4Bombs.length<2){
+  if(just['Space']&&s4BombCD<=0&&s4Bombs.length<2){
     const bc=Math.floor((P.x+P.w/2-S4_OX)/S4_TILE);
     const br=Math.floor((P.y+P.h/2-S4_OY)/S4_TILE);
     if(!s4Bombs.some(b=>b.r===br&&b.c===bc)){
@@ -5830,16 +5830,16 @@ function update(){
     if(s2SwordCD>0) s2SwordCD--;
     if(s2SwordTimer>0) s2SwordTimer--;
 
-    // 魔法少女：Bボタン（キーボード:Xキー）で星を発射（バウンド弾）
-    if(costumeType===1 && (just['KeyX']||just['KeyB']) && s2FireCD===0){
+    // 魔法少女：Bボタン（キーボード:Bキー）で星を発射（バウンド弾）
+    if(costumeType===1 && (just['KeyN']||just['KeyB']) && s2FireCD===0){
       const bx=P.x+P.w/2+P.facing*18, by=P.y+P.h/2-12;
       s2Bullets.push({x:bx,y:by,vx:P.facing*10,vy:2,on:true,t:0,bounces:0});
       s2FireCD=16;
       beep(880,0.08,0.13,'sine'); beep(1100,0.05,0.08,'sine',0.07);
     }
 
-    // 戦士：Bボタン（キーボード:Xキー）で剣を振る
-    if(costumeType===2 && (just['KeyX']||just['KeyB']) && s2SwordCD===0){
+    // 戦士：Bボタン（キーボード:Bキー）で剣を振る
+    if(costumeType===2 && (just['KeyN']||just['KeyB']) && s2SwordCD===0){
       s2SwordTimer=20; s2SwordCD=30;
       beep(300,0.06,0.18,'sawtooth'); beep(180,0.05,0.12,'sawtooth',0.06);
     }
