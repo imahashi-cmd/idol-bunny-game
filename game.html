@@ -4041,6 +4041,41 @@ function drawStage6(){
     // キー文字
     ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='11px Arial'; ctx.textAlign='center';
     ctx.fillText(S6_KCHAR[l],lx,S6_HIT_Y+28);
+    // ゲームパッドボタンアイコン
+    ctx.save();
+    const gpY = S6_HIT_Y + 52;
+    if(l < 4){
+      // 十字キー方向（←↓↑→）
+      const arrows = ['←','↓','↑','→'];
+      ctx.fillStyle = 'rgba(160,210,255,0.22)';
+      ctx.beginPath(); ctx.roundRect(lx-13, gpY-13, 26, 22, 5); ctx.fill();
+      ctx.strokeStyle = 'rgba(160,210,255,0.55)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(lx-13, gpY-13, 26, 22, 5); ctx.stroke();
+      ctx.fillStyle = 'rgba(180,230,255,0.90)';
+      ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
+      ctx.fillText(arrows[l], lx, gpY+3);
+    } else {
+      // フェイスボタン（色付き丸）
+      const btnColors = ['#BB8800','#CC2020','#207730','#1844BB'];
+      const btnLabels = ['Y','B','A','X'];
+      ctx.fillStyle = btnColors[l-4];
+      ctx.beginPath(); ctx.arc(lx, gpY-2, 12, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(lx, gpY-2, 12, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
+      ctx.fillText(btnLabels[l-4], lx, gpY+2);
+    }
+    ctx.restore();
+  }
+  // GPアイコン（十字キー側）
+  {
+    const iconX = S6_X0 - 5, iconY = S6_HIT_Y + 41;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.font = '13px Arial'; ctx.textAlign = 'right';
+    ctx.fillText('🎮', iconX, iconY);
+    ctx.restore();
   }
 
   // 判定テキスト
