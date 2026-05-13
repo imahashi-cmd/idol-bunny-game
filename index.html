@@ -5905,7 +5905,7 @@ function update(){
       if(just['Digit5']||just['Numpad5']) startStage=5;
       if(just['Digit6']||just['Numpad6']) startStage=6;
       if(just['Space']||just['Enter']){ ensureAudio(); initGame(startStage); }
-      if(just['Escape']) selectStep='char'; // Bで戻る
+      if(just['Escape']||just['KeyN']) selectStep='char'; // Escape or ゲームパッドBで戻る
     }
     return;
   }
