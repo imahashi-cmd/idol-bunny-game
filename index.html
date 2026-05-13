@@ -84,8 +84,6 @@ let audioCtx = null;
 function ensureAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
-  // タイトル画面にいる場合はBGMを起動
-  if (state === 'select' && !_titleBGMRunning) setTimeout(startTitleBGM, 60);
 }
 function beep(freq, dur, vol=0.18, type='sine', delay=0) {
   if (!audioCtx) return;
@@ -6127,6 +6125,9 @@ function loseLife(){
 }
 
 function update(){
+  // タイトル画面BGM：audioCtx が準備できたら毎フレーム確認して起動
+  if(state==='select' && audioCtx && !_titleBGMRunning) startTitleBGM();
+
   if(state==='select'){
     if(selectStep==='char'){
       // ステップ１：キャラクター選択
@@ -6168,12 +6169,12 @@ function update(){
   }
   if(state==='win'){
     winTimer++;
-    if(winTimer>120&&(just['Space']||just['Enter'])){ stopBGM(); state='select'; selectStep='char'; startTitleBGM(); }
+    if(winTimer>120&&(just['Space']||just['Enter'])){ stopBGM(); state='select'; selectStep='char'; }
     return;
   }
   if(state==='gameover'){
     gameoverTimer++;
-    if(gameoverTimer>80&&(just['Space']||just['Enter'])){ state='select'; selectStep='char'; startTitleBGM(); }
+    if(gameoverTimer>80&&(just['Space']||just['Enter'])){ state='select'; selectStep='char'; }
     return;
   }
   if(state==='win'||state==='gameover') return;
