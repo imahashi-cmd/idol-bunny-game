@@ -680,7 +680,7 @@ canvas.addEventListener('touchstart', e=>{
         const col=i%3, row=Math.floor(i/3);
         const bx=px0+col*(pw+pgap), by=rowY[row];
         if(pt.x>=bx&&pt.x<=bx+pw&&pt.y>=by&&pt.y<=by+ph){
-          s6SongIdx=i; s6BuildChart(i); state='play';
+          s6SongIdx=i; s6StartSong=i; s6BuildChart(i); state='play';
           handled=true; break;
         }
       }
@@ -690,6 +690,11 @@ canvas.addEventListener('touchstart', e=>{
         if(pt.x<px0) s6SongIdx=(s6SongIdx+5)%6;
         else if(pt.x>px0+totalPW) s6SongIdx=(s6SongIdx+1)%6;
       }
+      continue;
+    }
+    // 曲クリア中間画面：タップで次の曲へ
+    if(state === 'song_clear' && currentStage===5){
+      if(s6SongClearTimer>60){ just['Space']=true; }
       continue;
     }
     // Stage 6: レーンタッチ（音符を鳴らす）
@@ -3780,6 +3785,8 @@ let s6Notes=[], s6Flash=new Array(8).fill(0), s6MissFlash=new Array(8).fill(0);
 let s6Judges=[], s6SongEnd=0, s6Cleared=false, s6WalkT=0;
 let s6Perfect=0, s6GoodCnt=0, s6Miss=0;
 let s6SongIdx=0, s6SelectAnim=0;
+let s6StartSong=0;       // 最初に選んだ曲インデックス
+let s6SongClearTimer=0;  // 曲クリア中間画面タイマー
 let s6BassChart=[], s6DrumChart=[], s6ChordChart=[];
 let s6CurrentFPB=60, s6CurrentGood=42, s6CurrentPerf=20;
 
@@ -3869,6 +3876,7 @@ function initStage6(){
   s6Judges=[]; s6Cleared=false; s6WalkT=0;
   s6Perfect=0; s6GoodCnt=0; s6Miss=0;
   s6SelectAnim=0; goalReached=false;
+  s6StartSong=0; s6SongClearTimer=0;
   state='song_select';
   document.getElementById('hint').textContent=
     '← → で曲を選ぶ | Enter / Space でスタート | Z X C V B N M , = ど れ み ふぁ そ ら し ど↑';
@@ -3883,6 +3891,24 @@ function updateStage6(){
     if(just['ArrowUp']||just['KeyW'])    s6SongIdx=s6SongIdx>=3?s6SongIdx-3:s6SongIdx+3;
     if(just['ArrowDown']||just['KeyS'])  s6SongIdx=s6SongIdx>=3?s6SongIdx-3:s6SongIdx+3;
     if(just['Space']||just['Enter']){
+      s6StartSong=s6SongIdx;
+      s6BuildChart(s6SongIdx);
+      state='play';
+    }
+    return;
+  }
+
+  // ── 曲クリア中間画面 ──
+  if(state==='song_clear'){
+    s6SongClearTimer++;
+    if(s6SongClearTimer>180||(just['Space']||just['Enter'])){
+      // 次の曲へ
+      s6SongIdx++;
+      s6StopAllNotes();
+      s6Timer=0; s6Score=0; s6Combo=0; s6MaxCombo=0;
+      s6Flash=new Array(8).fill(0); s6MissFlash=new Array(8).fill(0);
+      s6Judges=[]; s6Cleared=false; s6WalkT=0;
+      s6Perfect=0; s6GoodCnt=0; s6Miss=0;
       s6BuildChart(s6SongIdx);
       state='play';
     }
@@ -4001,9 +4027,16 @@ function updateStage6(){
     s6Cleared=true; goalReached=true;
     stopBGM(); s6StopAllNotes();
     if(s6Miss===0){
-      state='win'; winTimer=0; winDance=0;
-      sfxFanfare();
-      setTimeout(()=>sfxWin6(), 600); // 合成音で感動的なクリアBGM
+      if(s6SongIdx===5){
+        // 最後の曲（No.6）クリア → ゲームクリア！
+        state='win'; winTimer=0; winDance=0;
+        sfxFanfare();
+        setTimeout(()=>sfxWin6(), 600);
+      } else {
+        // 途中の曲クリア → 次の曲へ進む画面
+        state='song_clear'; s6SongClearTimer=0;
+        sfxFanfare();
+      }
     } else {
       state='gameover'; gameoverTimer=0;
     }
@@ -4028,10 +4061,10 @@ function drawS6SongSelect(){
   ctx.save();
   ctx.font='bold 25px Arial'; ctx.textAlign='center';
   ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.lineWidth=5;
-  ctx.strokeText('♪ 曲を選んでください ♪', W/2, 42);
+  ctx.strokeText('♪ スタートする曲を選んでください ♪', W/2, 42);
   const tg=ctx.createLinearGradient(0,22,0,48);
   tg.addColorStop(0,'#FFD700'); tg.addColorStop(1,'#FF69B4');
-  ctx.fillStyle=tg; ctx.fillText('♪ 曲を選んでください ♪', W/2, 42);
+  ctx.fillStyle=tg; ctx.fillText('♪ スタートする曲を選んでください ♪', W/2, 42);
   ctx.restore();
 
   // キャラがダンス
@@ -4042,6 +4075,18 @@ function drawS6SongSelect(){
   const fn=charType==='pink'?drawPink:drawWhite;
   fn(0,0,1,s6SelectAnim*0.05,false,true,s6SelectAnim*0.05);
   ctx.restore();
+
+  // 進行順ヒント（選択中の曲から6番まで）
+  {
+    const orderStr = s6SongIdx===5
+      ? 'No.6 をクリアでゲームクリア！'
+      : 'No.' + (s6SongIdx+1) + ' → ' + [...Array(5-s6SongIdx)].map((_,k)=>'No.'+(s6SongIdx+k+2)).join(' → ')
+        + ' の順にクリア！';
+    ctx.save(); ctx.font='bold 13px Arial'; ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,220,100,0.85)';
+    ctx.fillText(orderStr, W/2, 200);
+    ctx.restore();
+  }
 
   // 2行 × 3列 パネル
   const pw=188, ph=96, pgap=13, rowGap=11;
@@ -4141,9 +4186,82 @@ function drawS6SongSelect(){
   ctx.restore();
 }
 
+function drawS6SongClear(){
+  // 背景（暗めのライブステージ）
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#04000e'); bg.addColorStop(0.6,'#0a0025'); bg.addColorStop(1,'#180040');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  // 星
+  for(let i=0;i<60;i++){
+    const x=(i*137.5)%W, y=(i*91.3)%350;
+    const sz=0.4+Math.abs(Math.sin(s6SongClearTimer*0.04+i))*1.3;
+    ctx.fillStyle=`rgba(255,255,255,${0.25+Math.abs(Math.sin(s6SongClearTimer*0.03+i*0.8))*0.5})`;
+    ctx.beginPath(); ctx.arc(x,y,sz,0,Math.PI*2); ctx.fill();
+  }
+  // キャラ
+  const bop=Math.sin(s6SongClearTimer*0.14)*8;
+  ctx.save(); ctx.translate(W/2, 160+bop); ctx.scale(1.2,1.2);
+  const fn=charType==='pink'?drawPink:drawWhite;
+  fn(0,0,1,s6SongClearTimer*0.07,false,true,s6SongClearTimer*0.07);
+  ctx.restore();
+  // CLEAR！テキスト
+  const sc=1+Math.sin(s6SongClearTimer*0.08)*0.04;
+  ctx.save(); ctx.translate(W/2,220); ctx.scale(sc,sc);
+  ctx.font='bold 46px Arial'; ctx.textAlign='center';
+  ctx.strokeStyle='#9900cc'; ctx.lineWidth=7; ctx.strokeText('CLEAR！',0,0);
+  const tg=ctx.createLinearGradient(-100,-30,100,10);
+  tg.addColorStop(0,'#FFD700'); tg.addColorStop(0.5,'#FF69B4'); tg.addColorStop(1,'#FFD700');
+  ctx.fillStyle=tg; ctx.fillText('CLEAR！',0,0);
+  ctx.restore();
+  // クリアした曲名
+  const doneSong=S6_SONGS[s6SongIdx];
+  ctx.save(); ctx.font='bold 20px Arial'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(255,255,180,0.9)';
+  ctx.fillText(`♪  ${doneSong.name}  ♪`, W/2, 260);
+  ctx.restore();
+  // スコア
+  ctx.save(); ctx.font='18px Arial'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(200,220,255,0.85)';
+  ctx.fillText(`スコア: ${s6Score}　PERFECT: ${s6Perfect}　MISS: ${s6Miss}`, W/2, 290);
+  ctx.restore();
+  // 次の曲
+  const nextSong=S6_SONGS[s6SongIdx+1];
+  ctx.save();
+  ctx.font='bold 16px Arial'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(255,200,100,0.9)';
+  ctx.fillText(`次の曲 → No.${s6SongIdx+2}  「${nextSong.name}」`, W/2, 335);
+  ctx.restore();
+  // プロンプト（点滅）
+  if(s6SongClearTimer>60){
+    const pl=Math.sin(s6SongClearTimer*0.12)>0;
+    ctx.save(); ctx.font='bold 16px Arial'; ctx.textAlign='center';
+    ctx.fillStyle=pl?'#FFD700':'#FF69B4';
+    ctx.fillText(isTouchDevice?'タップして次の曲へ！':'Space / Enter で次の曲へ！', W/2, 375);
+    ctx.restore();
+  }
+  // 残り曲数バー（どこまで来たか）
+  const totalSongs=6-s6StartSong;
+  const doneCount=s6SongIdx-s6StartSong+1;
+  const barW=300, barH=12, barX=W/2-barW/2, barY=H-40;
+  ctx.save();
+  ctx.fillStyle='rgba(255,255,255,0.12)';
+  ctx.beginPath(); ctx.roundRect(barX,barY,barW,barH,6); ctx.fill();
+  const prog=doneCount/totalSongs;
+  const grd=ctx.createLinearGradient(barX,barY,barX+barW,barY);
+  grd.addColorStop(0,'#FF69B4'); grd.addColorStop(1,'#FFD700');
+  ctx.fillStyle=grd;
+  ctx.beginPath(); ctx.roundRect(barX,barY,barW*prog,barH,6); ctx.fill();
+  ctx.font='11px Arial'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.fillText(`${doneCount} / ${totalSongs} 曲クリア`, W/2, barY-4);
+  ctx.restore();
+}
+
 function drawStage6(){
   // 曲選択画面
   if(state==='song_select'){ drawS6SongSelect(); return; }
+  // 曲クリア中間画面
+  if(state==='song_clear'){ drawS6SongClear(); return; }
 
   // 背景：ライブステージ
   const bg=ctx.createLinearGradient(0,0,0,H);
@@ -6082,7 +6200,8 @@ function drawGameoverScreen(){
   if(gameoverTimer>80){
     const pl=Math.sin(gameoverTimer*0.12)>0;
     ctx.font='bold 18px Arial'; ctx.fillStyle=pl?'#FFD700':'#FF69B4';
-    ctx.fillText('Space でリトライ！',W/2,H/2+75);
+    const retryMsg=currentStage===5?'Space で曲選択に戻る':'Space でリトライ！';
+    ctx.fillText(retryMsg,W/2,H/2+75);
   }
   ctx.restore();
 }
@@ -6183,7 +6302,10 @@ function update(){
   }
   if(state==='gameover'){
     gameoverTimer++;
-    if(gameoverTimer>80&&(just['Space']||just['Enter'])){ state='select'; selectStep='char'; }
+    if(gameoverTimer>80&&(just['Space']||just['Enter'])){
+      if(currentStage===5){ initStage6(); } // 音ゲーは曲選択に戻る
+      else { state='select'; selectStep='char'; }
+    }
     return;
   }
   if(state==='win'||state==='gameover') return;
@@ -6233,8 +6355,8 @@ function update(){
     return;
   }
 
-  // ステージ6の曲選択画面はplay状態でなくてもupdate
-  if(state==='song_select'&&currentStage===5){ updateStage6(); return; }
+  // ステージ5の曲選択・クリア中間画面はplay状態でなくてもupdate
+  if((state==='song_select'||state==='song_clear')&&currentStage===5){ updateStage6(); return; }
 
   if(state!=='play') return;
 
@@ -6611,7 +6733,7 @@ canvas.addEventListener('click',e=>{
       const bx=px0+col*(pw+pgap);
       const by=rowY[row];
       if(mx>=bx&&mx<=bx+pw&&my>=by&&my<=by+ph){
-        s6SongIdx=i;
+        s6SongIdx=i; s6StartSong=i;
         s6BuildChart(s6SongIdx);
         state='play';
         return;
@@ -6620,6 +6742,10 @@ canvas.addEventListener('click',e=>{
     if(mx<px0){ s6SongIdx=(s6SongIdx+5)%6; return; }
     if(mx>px0+totalPW){ s6SongIdx=(s6SongIdx+1)%6; return; }
     return;
+  }
+  // 曲クリア中間画面クリック→次の曲へ
+  if(state==='song_clear'&&currentStage===5&&s6SongClearTimer>60){
+    just['Space']=true; return;
   }
   if(state!=='select') return;
   const r=canvas.getBoundingClientRect();
