@@ -101,6 +101,10 @@ function sfxCollect() { beep(660,0.06,0.15); beep(880,0.1,0.12,undefined,0.05); 
 function sfxStar()    { [440,550,660,880,1100].forEach((f,i)=>beep(f,0.15,0.12,undefined,i*0.07)); }
 function sfxStomp()   { beep(180,0.12,0.2,'sawtooth'); beep(300,0.08,0.1,undefined,0.08); }
 function sfxHurt()    { beep(160,0.3,0.2,'sawtooth'); }
+function sfxWarpEnter() { // ダンスホール入場SE
+  beep(440,0.08,0.15,'sine'); beep(550,0.08,0.12,'sine',0.06);
+  beep(660,0.08,0.12,'sine',0.12); beep(880,0.15,0.18,'sine',0.18);
+}
 function sfxDance()   {
   const melody=[523,587,659,698,784,880,988,1047];
   melody.forEach((f,i)=>beep(f,0.12,0.13,undefined,i*0.07));
@@ -478,6 +482,8 @@ const TB3 = {
 // Stage 2 ドア入室ボタン
 const TB_DOOR = { x: W/2, y: H - 55, r: 42 };
 let s2NearDoor = false;
+let s1HallTransition = 0; // ダンスホール入場トランジション(0=なし,1-60=進行中)
+let s1HallEntered = false;  // ダンスホール入場済みフラグ
 let s2Bullets = [];     // 魔法弾（世界座標）
 let s2FireCD  = 0;      // 発射クールダウン
 let s2SwordTimer = 0;   // 剣振りアニメ残フレーム（>0=振り中）
@@ -684,6 +690,7 @@ function initGame(stage=1) {
   currentStage=stage;
   score=0; lives=3; noteCount=0; goalReached=false; starCount=0;
   danceTimer=0; winTimer=0; gameoverTimer=0; stageClearTimer=0;
+  s1HallTransition=0; s1HallEntered=false;
   const timeLimits={1:-1,2:-1,3:7200,4:3600,5:-1};
   stageTimer=timeLimits[stage]??-1;
   state='play';
@@ -854,6 +861,8 @@ function initGame(stage=1) {
 
     // センターマイク（ゴール）- y:268 でベースがステージ面(y:348)に合う
     items.push({k:'goal_mic',x:4340+OX,y:268,w:40,h:80,on:true});
+    // 衣装部屋の扉（ダンスホール入り口付近）
+    items.push({k:'door',x:OX+42,y:GROUND_TOP-88,w:44,h:88,on:true});
 
     // ダンスホール敵
     [
@@ -5101,6 +5110,16 @@ function drawItems(){
       // 星飾り
       drawStar(sx+20,gy+20,8,'#FFD700');
       drawStar(sx+gw-20,gy+20,8,'#FFD700');
+      // 近づいたらヒント表示
+      const pdxH=Math.abs((P.x+P.w/2)-(it.x+it.w/2));
+      if(pdxH<160 && !s1HallEntered && s1HallTransition===0){
+        const hintA=Math.max(0,(160-pdxH)/160);
+        ctx.globalAlpha=hintA*(0.7+Math.sin(t*4)*0.3);
+        ctx.fillStyle='#FFD700'; ctx.font='bold 13px Arial'; ctx.textAlign='center';
+        ctx.shadowColor='#FFD700'; ctx.shadowBlur=10;
+        ctx.fillText('→ ダンスホールへ！',sx+gw/2,gy-16);
+        ctx.shadowBlur=0; ctx.globalAlpha=1;
+      }
       ctx.restore();
     } else if(it.k==='goal_mic'){
       // センターマイク（ゴール）
@@ -6133,6 +6152,28 @@ function update(){
 
   s2NearDoor=false; // 毎フレームリセット（ドア判定で再セット）
 
+  // ── ダンスホール入場トランジション ─────────────
+  if(s1HallTransition > 0){
+    s1HallTransition--;
+    if(s1HallTransition === 30){
+      // 暗転の頂点：プレイヤーをダンスホール入り口へワープ
+      P.x = 5870; P.y = GROUND_TOP - P.h;
+      P.vx = 0; P.vy = 0; P.onGround = false;
+      cam.x = 5800;
+      s1HallEntered = true;
+    }
+    // トランジション中は入力を受け付けない（物理のみ継続）
+    P.vy = Math.min(P.vy + GRAVITY, 16);
+    P.y += P.vy;
+    collide(P, platforms);
+    if(Math.abs(P.vx)>0.5&&P.onGround) P.walkT+=0.1;
+    const tgt2=P.x-W/3;
+    cam.x+=(tgt2-cam.x)*0.1;
+    cam.x=Math.max(0,Math.min((currentStage===1?LEVEL_W_MERGED:LEVEL_W)-W,cam.x));
+    updateFX();
+    return;
+  }
+
   // Player horizontal
   const ml=keys['ArrowLeft']||keys['KeyA'];
   const mr=keys['ArrowRight']||keys['KeyD'];
@@ -6216,6 +6257,8 @@ function update(){
   if(P.x<0) P.x=0;
   const LW1=currentStage===1?LEVEL_W_MERGED:LEVEL_W;
   if(P.x+P.w>LW1) P.x=LW1-P.w;
+  // アウトドアフェーズでは建物の右端を越えられない
+  if(currentStage===1 && !s1HallEntered && P.x+P.w > 5760) P.x = 5760 - P.w;
   if(P.y>H+60){ loseLife(); return; }
 
   collide(P,platforms);
@@ -6228,6 +6271,8 @@ function update(){
   const tgt=P.x-W/3;
   cam.x+=(tgt-cam.x)*0.1;
   cam.x=Math.max(0,Math.min((currentStage===1?LEVEL_W_MERGED:LEVEL_W)-W,cam.x));
+  // アウトドアフェーズはカメラをダンスホール手前で止める
+  if(currentStage===1 && !s1HallEntered) cam.x=Math.min(cam.x, 5000);
 
   // Enemies
   enemies.forEach(e=>{
@@ -6259,7 +6304,18 @@ function update(){
   // Items
   items.forEach(it=>{
     if(!it.on) return;
-    if(it.k==='hallgate') return; // 建物は当たり判定なし
+    if(it.k==='hallgate'){
+      // アーチ入り口（建物中央）に近づいたら自動でダンスホールへワープ
+      if(!s1HallEntered && s1HallTransition===0){
+        const archCX = it.x + it.w/2;
+        const nearX = P.x+P.w/2 > archCX-50 && P.x+P.w/2 < archCX+50;
+        if(nearX && P.onGround){
+          s1HallTransition = 60;
+          ensureAudio(); sfxWarpEnter();
+        }
+      }
+      return;
+    }
     // ゴールポールは中心軸±10px かつ 着地中のみ有効（ジャンプ/落下では取れない）
     const hitX = it.k==='goal'
       ? (P.x<it.x+10&&P.x+P.w>it.x-10&&P.onGround)
@@ -6384,6 +6440,28 @@ function draw(){
   drawFX();
   drawHUD();
   drawTouchControls();
+
+  // ── ダンスホール入場トランジション（暗転フェード）──────
+  if(s1HallTransition > 0){
+    // 0-30: フェードイン（暗くなる）, 30-60: フェードアウト（明るくなる）
+    const alpha = s1HallTransition > 30
+      ? (60 - s1HallTransition) / 30   // 60→31: 0→1
+      : s1HallTransition / 30;          // 30→0 : 1→0
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    // 中央に入場メッセージ（暗転ピーク付近）
+    if(s1HallTransition <= 32 && s1HallTransition >= 28){
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#FF69B4';
+      ctx.font = 'bold 28px Arial'; ctx.textAlign = 'center';
+      ctx.shadowColor = '#FF69B4'; ctx.shadowBlur = 20;
+      ctx.fillText('ダンスホールへようこそ！', W/2, H/2);
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+  }
 
   if(state==='stage_clear') drawStageClear();
   if(state==='win') drawWinScreen();
