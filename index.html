@@ -865,8 +865,6 @@ function initGame(stage=1) {
     {x:5100,y:288, w:110, h:18, t:'p'},
     {x:5300,y:218, w: 90, h:18, t:'p'},
     {x:5480,y:168, w:120, h:18, t:'p'},
-    // Goal stage
-    {x:5600,y:348, w:200, h:22, t:'stage'},
   ];
 
   // Music notes
@@ -6578,6 +6576,8 @@ function update(){
   if(P.x+P.w>LW1) P.x=LW1-P.w;
   // アウトドアフェーズでは建物の右端を越えられない
   if(currentStage===1 && !s1HallEntered && P.x+P.w > 5760) P.x = 5760 - P.w;
+  // ダンスホール入場後は屋外に戻れない（x=5810 を左端とする壁）
+  if(currentStage===1 && s1HallEntered && P.x < 5810) P.x = 5810;
   if(P.y>H+60){ loseLife(); return; }
 
   collide(P,platforms);
@@ -6592,6 +6592,8 @@ function update(){
   cam.x=Math.max(0,Math.min((currentStage===1?LEVEL_W_MERGED:LEVEL_W)-W,cam.x));
   // アウトドアフェーズはカメラをダンスホール手前で止める
   if(currentStage===1 && !s1HallEntered) cam.x=Math.min(cam.x, 5000);
+  // ダンスホール入場後はカメラが屋外へ戻らない
+  if(currentStage===1 && s1HallEntered) cam.x=Math.max(cam.x, 5800);
 
   // Enemies
   enemies.forEach(e=>{
