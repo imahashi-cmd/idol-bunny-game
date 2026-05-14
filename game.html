@@ -3821,9 +3821,9 @@ function s6StartNote(lane, freqOverride){
     return {o,g};
   };
   s6OscNodes[lane]=[
-    mk('sine',    freq,      0.22, 0.025), // メイン
-    mk('triangle',freq*2,    0.05, 0.040), // オクターブ上（輝き）
-    mk('sine',    freq*0.5,  0.04, 0.020), // サブ低音（温かみ）
+    mk('sine',    freq,      0.66, 0.025), // メイン
+    mk('triangle',freq*2,    0.15, 0.040), // オクターブ上（輝き）
+    mk('sine',    freq*0.5,  0.12, 0.020), // サブ低音（温かみ）
   ];
 }
 function s6StopNote(lane){
