@@ -6474,9 +6474,11 @@ function update(){
     s1HallTransition--;
     if(s1HallTransition === 30){
       // 暗転の頂点：プレイヤーをダンスホール入り口へワープ
-      P.x = 5870; P.y = GROUND_TOP - P.h;
-      P.vx = 0; P.vy = 0; P.onGround = false;
+      // P.x = cam.x + W/3 になるよう配置 → カメラ目標 = cam.x（ズレ0、瞬間移動なし）
       cam.x = 5800;
+      P.x = cam.x + Math.round(W/3); // = 6067（画面左1/3の位置に出現）
+      P.y = GROUND_TOP - P.h;
+      P.vx = 0; P.vy = 0; P.onGround = false;
       s1HallEntered = true;
     }
     // トランジション中は入力を受け付けない（物理のみ継続）
@@ -6487,6 +6489,8 @@ function update(){
     const tgt2=P.x-W/3;
     cam.x+=(tgt2-cam.x)*0.1;
     cam.x=Math.max(0,Math.min((currentStage===1?LEVEL_W_MERGED:LEVEL_W)-W,cam.x));
+    // 入場後はカメラが屋外に戻らない（ループ内でも適用）
+    if(s1HallEntered) cam.x=Math.max(cam.x,5800);
     updateFX();
     return;
   }
