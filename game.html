@@ -331,6 +331,11 @@ function stopBGM() {
   const a = getBGM(); if (a) a.pause();
   const a3 = document.getElementById('bgm3'); if (a3) a3.pause();
 }
+function _resumeBGM() {
+  // ポーズ解除時：bgmStageに応じて正しいBGMだけ再開
+  if(bgmStage===3){ const a3=document.getElementById('bgm3'); if(a3) a3.play().catch(()=>{}); }
+  else if(bgmStage>=1 && bgmStage!==6){ const a=getBGM(); if(a) a.play().catch(()=>{}); }
+}
 
 // ── タイトル画面BGM（Web Audio API 合成） ────────────
 let _titleBGMRunning = false;
@@ -6355,14 +6360,11 @@ function update(){
     paused = !paused;
     if(paused){
       pauseMenuIdx = 0;
-      // BGM一時停止
-      const _a = getBGM(); if(_a) _a.pause();
-      const _a3 = document.getElementById('bgm3'); if(_a3) _a3.pause();
+      // 再生中のBGMだけ一時停止
+      if(bgmStage===3){ const _a3=document.getElementById('bgm3'); if(_a3) _a3.pause(); }
+      else             { const _a=getBGM(); if(_a) _a.pause(); }
     } else {
-      // BGM再開
-      const _a = getBGM(); if(_a && !_a.paused) {} else if(_a) _a.play().catch(()=>{});
-      const _a3 = document.getElementById('bgm3');
-      if(_a3 && bgmStage===3 && !_a3.paused) {} else if(_a3 && bgmStage===3) _a3.play().catch(()=>{});
+      _resumeBGM();
     }
   }
   if(paused){
@@ -6372,9 +6374,7 @@ function update(){
       if(pauseMenuIdx===0){
         // 再開
         paused=false;
-        const _a=getBGM(); if(_a) _a.play().catch(()=>{});
-        const _a3=document.getElementById('bgm3');
-        if(_a3 && bgmStage===3) _a3.play().catch(()=>{});
+        _resumeBGM();
       } else {
         // やめる → タイトルへ
         paused=false;
@@ -6725,6 +6725,58 @@ function update(){
   updateFX();
 }
 
+// ── ポーズオーバーレイ（全ステージ共通）──────────────
+function drawPauseOverlay(){
+  ctx.save();
+  ctx.globalAlpha=0.62;
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,W,H);
+  ctx.globalAlpha=1;
+
+  // パネル
+  const pw=260, ph=180;
+  const px=W/2-pw/2, py=H/2-ph/2;
+  ctx.save();
+  ctx.shadowColor='#FF69B4'; ctx.shadowBlur=32;
+  ctx.fillStyle='#1a0535';
+  ctx.strokeStyle='#FF69B4'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.roundRect(px,py,pw,ph,14); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  // タイトル
+  ctx.font='bold 22px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#FFD700';
+  ctx.shadowColor='#FFD700'; ctx.shadowBlur=10;
+  ctx.fillText('⏸ 一時停止', W/2, py+36);
+  ctx.shadowBlur=0;
+
+  // メニュー項目
+  const menuItems=['▶  再開','✕  やめる'];
+  const itemColors=['#FFFFFF','#FF6B6B'];
+  for(let i=0;i<2;i++){
+    const iy=py+85+i*52;
+    if(pauseMenuIdx===i){
+      ctx.fillStyle='rgba(255,105,180,0.28)';
+      ctx.beginPath(); ctx.roundRect(px+14,iy-20,pw-28,40,8); ctx.fill();
+      ctx.fillStyle=itemColors[i];
+      ctx.shadowColor=itemColors[i]; ctx.shadowBlur=8;
+    } else {
+      ctx.fillStyle='rgba(255,255,255,0.55)';
+      ctx.shadowBlur=0;
+    }
+    ctx.font=(pauseMenuIdx===i?'bold 20px':'18px')+' Arial';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(menuItems[i], W/2, iy);
+    ctx.shadowBlur=0;
+  }
+
+  // 操作ヒント
+  ctx.font='12px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('↑↓で選択  /  Spaceで決定  /  Escapeで再開', W/2, py+ph-18);
+  ctx.restore();
+}
+
 // ════════════════════════════════════════════
 //  DRAW
 // ════════════════════════════════════════════
@@ -6740,6 +6792,7 @@ function draw(){
     else { drawStage3BG(); drawFX(); }
     if(state==='stage_clear') drawStageClear();
     if(state==='gameover') drawGameoverScreen();
+    if(paused) drawPauseOverlay();
     return;
   }
 
@@ -6748,6 +6801,7 @@ function draw(){
     drawStage4Scene();
     if(state==='stage_clear') drawStageClear();
     if(state==='gameover') drawGameoverScreen();
+    if(paused) drawPauseOverlay();
     return;
   }
 
@@ -6757,6 +6811,7 @@ function draw(){
     if(state==='win') drawWinScreen();
     if(state==='gameover') drawGameoverScreen();
     if(state==='stage_clear') drawStageClear();
+    if(paused) drawPauseOverlay();
     return;
   }
 
@@ -6765,6 +6820,7 @@ function draw(){
     drawStage6();
     if(state==='win') drawWinScreen();
     if(state==='gameover') drawGameoverScreen();
+    if(paused) drawPauseOverlay();
     return;
   }
 
@@ -6832,59 +6888,7 @@ function draw(){
   if(state==='stage_clear') drawStageClear();
   if(state==='win') drawWinScreen();
   if(state==='gameover') drawGameoverScreen();
-  // ── ポーズオーバーレイ ──────────────────────────────
-  if(paused){
-    ctx.save();
-    // 背景暗転
-    ctx.globalAlpha=0.62;
-    ctx.fillStyle='#000';
-    ctx.fillRect(0,0,W,H);
-    ctx.globalAlpha=1;
-
-    // パネル
-    const pw=260, ph=180;
-    const px=W/2-pw/2, py=H/2-ph/2;
-    ctx.save();
-    ctx.shadowColor='#FF69B4'; ctx.shadowBlur=32;
-    ctx.fillStyle='#1a0535';
-    ctx.strokeStyle='#FF69B4'; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.roundRect(px,py,pw,ph,14); ctx.fill(); ctx.stroke();
-    ctx.restore();
-
-    // タイトル「⏸ 一時停止」
-    ctx.font='bold 22px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle='#FFD700';
-    ctx.shadowColor='#FFD700'; ctx.shadowBlur=10;
-    ctx.fillText('⏸ 一時停止', W/2, py+36);
-    ctx.shadowBlur=0;
-
-    // メニュー項目
-    const menuItems=['▶  再開','✕  やめる'];
-    const itemColors=['#FFFFFF','#FF6B6B'];
-    for(let i=0;i<2;i++){
-      const iy=py+85+i*52;
-      if(pauseMenuIdx===i){
-        // 選択中：ハイライト背景
-        ctx.fillStyle='rgba(255,105,180,0.28)';
-        ctx.beginPath(); ctx.roundRect(px+14,iy-20,pw-28,40,8); ctx.fill();
-        ctx.fillStyle=itemColors[i];
-        ctx.shadowColor=itemColors[i]; ctx.shadowBlur=8;
-      } else {
-        ctx.fillStyle='rgba(255,255,255,0.55)';
-        ctx.shadowBlur=0;
-      }
-      ctx.font=(pauseMenuIdx===i?'bold 20px':'18px')+' Arial';
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(menuItems[i], W/2, iy);
-      ctx.shadowBlur=0;
-    }
-
-    // 操作ヒント
-    ctx.font='12px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('↑↓で選択  /  Spaceで決定  /  Escapeで再開', W/2, py+ph-18);
-    ctx.restore();
-  }
+  if(paused) drawPauseOverlay();
 
   // ゲームパッド接続通知
   if(gpNoticeTimer > 0){
