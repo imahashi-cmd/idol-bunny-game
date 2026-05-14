@@ -758,6 +758,8 @@ canvas.addEventListener('touchcancel', e=>{
 
 // ── State ─────────────────────────────────
 let state = 'select';  // select | play | dance_flash | win | gameover
+let paused = false;         // ポーズ中フラグ
+let pauseMenuIdx = 0;       // 0=再開 1=やめる
 let charType = 'pink';      // pink | white
 let startStage = 1;         // 1〜5
 let selectStep = 'char';    // 'char' | 'stage'
@@ -796,6 +798,7 @@ let platforms=[], enemies=[], items=[], particles=[], floatTxts=[], bgTrees=[];
 // ════════════════════════════════════════════
 function initGame(stage=1) {
   currentStage=stage;
+  paused=false; pauseMenuIdx=0;
   score=0; lives=3; noteCount=0; goalReached=false; starCount=0;
   danceTimer=0; winTimer=0; gameoverTimer=0; stageClearTimer=0;
   s1HallTransition=0; s1HallEntered=false;
@@ -3878,6 +3881,7 @@ function s6BuildChart(idx){
 
 function initStage6(){
   s6StopAllNotes();
+  paused=false; pauseMenuIdx=0;
   s6Timer=0; s6Score=0; s6Combo=0; s6MaxCombo=0;
   s6Flash=new Array(8).fill(0); s6MissFlash=new Array(8).fill(0);
   s6Judges=[]; s6Cleared=false; s6WalkT=0;
@@ -6345,6 +6349,43 @@ function loseLife(){
 }
 
 function update(){
+  // ── ポーズ制御（セレクトボタン / Escape） ──────────────
+  const _pauseable = (state==='play'||state==='dance_flash'||state==='song_select'||state==='song_clear');
+  if(just['Escape'] && _pauseable){
+    paused = !paused;
+    if(paused){
+      pauseMenuIdx = 0;
+      // BGM一時停止
+      const _a = getBGM(); if(_a) _a.pause();
+      const _a3 = document.getElementById('bgm3'); if(_a3) _a3.pause();
+    } else {
+      // BGM再開
+      const _a = getBGM(); if(_a && !_a.paused) {} else if(_a) _a.play().catch(()=>{});
+      const _a3 = document.getElementById('bgm3');
+      if(_a3 && bgmStage===3 && !_a3.paused) {} else if(_a3 && bgmStage===3) _a3.play().catch(()=>{});
+    }
+  }
+  if(paused){
+    if(just['ArrowUp']||just['KeyW'])   pauseMenuIdx=(pauseMenuIdx+1)%2;
+    if(just['ArrowDown']||just['KeyS']) pauseMenuIdx=(pauseMenuIdx+1)%2;
+    if(just['Space']||just['Enter']){
+      if(pauseMenuIdx===0){
+        // 再開
+        paused=false;
+        const _a=getBGM(); if(_a) _a.play().catch(()=>{});
+        const _a3=document.getElementById('bgm3');
+        if(_a3 && bgmStage===3) _a3.play().catch(()=>{});
+      } else {
+        // やめる → タイトルへ
+        paused=false;
+        stopBGM();
+        if(currentStage===5) s6StopAllNotes();
+        state='select'; selectStep='char';
+      }
+    }
+    return;
+  }
+
   // タイトル画面BGM：audioCtx が running 状態になり次第起動
   if(state==='select' && audioCtx && !_titleBGMRunning){
     if(audioCtx.state==='running') startTitleBGM();
@@ -6791,6 +6832,60 @@ function draw(){
   if(state==='stage_clear') drawStageClear();
   if(state==='win') drawWinScreen();
   if(state==='gameover') drawGameoverScreen();
+  // ── ポーズオーバーレイ ──────────────────────────────
+  if(paused){
+    ctx.save();
+    // 背景暗転
+    ctx.globalAlpha=0.62;
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha=1;
+
+    // パネル
+    const pw=260, ph=180;
+    const px=W/2-pw/2, py=H/2-ph/2;
+    ctx.save();
+    ctx.shadowColor='#FF69B4'; ctx.shadowBlur=32;
+    ctx.fillStyle='#1a0535';
+    ctx.strokeStyle='#FF69B4'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.roundRect(px,py,pw,ph,14); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    // タイトル「⏸ 一時停止」
+    ctx.font='bold 22px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#FFD700';
+    ctx.shadowColor='#FFD700'; ctx.shadowBlur=10;
+    ctx.fillText('⏸ 一時停止', W/2, py+36);
+    ctx.shadowBlur=0;
+
+    // メニュー項目
+    const menuItems=['▶  再開','✕  やめる'];
+    const itemColors=['#FFFFFF','#FF6B6B'];
+    for(let i=0;i<2;i++){
+      const iy=py+85+i*52;
+      if(pauseMenuIdx===i){
+        // 選択中：ハイライト背景
+        ctx.fillStyle='rgba(255,105,180,0.28)';
+        ctx.beginPath(); ctx.roundRect(px+14,iy-20,pw-28,40,8); ctx.fill();
+        ctx.fillStyle=itemColors[i];
+        ctx.shadowColor=itemColors[i]; ctx.shadowBlur=8;
+      } else {
+        ctx.fillStyle='rgba(255,255,255,0.55)';
+        ctx.shadowBlur=0;
+      }
+      ctx.font=(pauseMenuIdx===i?'bold 20px':'18px')+' Arial';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(menuItems[i], W/2, iy);
+      ctx.shadowBlur=0;
+    }
+
+    // 操作ヒント
+    ctx.font='12px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('↑↓で選択  /  Spaceで決定  /  Escapeで再開', W/2, py+ph-18);
+    ctx.restore();
+  }
+
   // ゲームパッド接続通知
   if(gpNoticeTimer > 0){
     gpNoticeTimer--;
