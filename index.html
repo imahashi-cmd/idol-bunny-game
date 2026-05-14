@@ -323,7 +323,7 @@ function startBGMWin() {
   a.currentTime = 0; a.playbackRate = 1.0; a.play().catch(()=>{});
 }
 function startBGM6() {
-  // ステージ6はbgm.mp3を使わず合成音のみ
+  bgmStage = 6; // BGMなし（合成音のみ）― _resumeBGM() が誤再生しないよう記録
 }
 function stopBGM() {
   bgmRunning = false;
