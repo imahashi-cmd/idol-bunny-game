@@ -2674,50 +2674,97 @@ function _sfDrawPlayer(){
   if(blink) return;
   ctx.save();
   const cx=P.x+P.w/2;
-  const bob=Math.sin(P.walkT*2.2)*1.2; // ボブ幅は控えめ（3倍スケール後に3倍になる）
-  const hcy=P.y+P.h+18; // ハリネズミ中心Y（プレイヤー矩形の少し下）
+  const bob=Math.sin(P.walkT*2.2)*2;
+  const hcy=P.y+P.h+18; // ハリネズミ基準Y（プレイヤー矩形の下）
   const faceDir=P.facing;
+  const sc=2.1; // 3×0.7 = 2.1倍スケール
 
-  // ── 乗り物ハリネズミ（3倍スケール） ─────────────────
+  // ── 乗り物ハリネズミ（シューティング前半と同じデザイン、2.1倍） ──
   ctx.save();
-  ctx.translate(cx, hcy+bob*3);
-  ctx.scale(faceDir*3, 3); // 左右反転もここで処理
-  // 体
-  ctx.fillStyle='#7B4F2F';
-  ctx.beginPath(); ctx.ellipse(0,0,20,13,0,0,Math.PI*2); ctx.fill();
-  // 腹（明るめ）
-  ctx.fillStyle='#A0733A';
-  ctx.beginPath(); ctx.ellipse(0,4,12,7,0,0,Math.PI*2); ctx.fill();
-  // トゲ（背中・上半分）
-  ctx.strokeStyle='#3A1E08'; ctx.lineWidth=0.9;
-  for(let i=0;i<12;i++){
-    const a=(i/12)*Math.PI;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a)*18,-Math.sin(a)*12);
-    ctx.lineTo(Math.cos(a)*27,-Math.sin(a)*20);
-    ctx.stroke();
-  }
-  // 顔（常に右向き、scaleで反転済み）
-  ctx.fillStyle='#F5CBA7';
-  ctx.beginPath(); ctx.ellipse(14,1,8,6,0,0,Math.PI*2); ctx.fill();
+  ctx.translate(cx, hcy+bob);
+  ctx.scale(faceDir*sc, sc); // 左右反転もここで処理
+
+  // メインボディ
+  ctx.fillStyle='#9B6B2C';
+  ctx.beginPath(); ctx.ellipse(0,8,24,15,0,0,Math.PI*2); ctx.fill();
+  // お腹（クリーム白）
+  ctx.fillStyle='#F0EDE0';
+  ctx.beginPath(); ctx.ellipse(4,12,17,9,0,0,Math.PI*2); ctx.fill();
+
+  // 後ろ足
+  ctx.fillStyle='#9B6B2C';
+  ctx.beginPath(); ctx.ellipse(-14,20,7,5,0.4,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-6,22,6,4,0.2,0,Math.PI*2); ctx.fill();
+  // 前足
+  ctx.beginPath(); ctx.ellipse(18,20,6,4,-0.2,0,Math.PI*2); ctx.fill();
+
+  // 頭（前方・クリーム色）
+  ctx.fillStyle='#F0EDE0';
+  ctx.beginPath(); ctx.arc(22,3,14,0,Math.PI*2); ctx.fill();
+  // 頭ハイライト
+  ctx.fillStyle='#F8F5EC';
+  ctx.beginPath(); ctx.arc(18,-1,9,0,Math.PI*2); ctx.fill();
+
+  // 鼻先
+  ctx.fillStyle='#C8A878';
+  ctx.beginPath(); ctx.ellipse(32,7,8,5,0.15,0,Math.PI*2); ctx.fill();
+  // 鼻（黒・ツヤ）
   ctx.fillStyle='#111';
-  ctx.beginPath(); ctx.arc(18,0,2.2,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#FF9999';
-  ctx.beginPath(); ctx.arc(21,2,1.5,0,Math.PI*2); ctx.fill();
-  // 目のハイライト
-  ctx.fillStyle='#fff';
-  ctx.beginPath(); ctx.arc(17,-1,0.9,0,Math.PI*2); ctx.fill();
-  // 足（走りアニメ）
-  ctx.fillStyle='#5C3A1E';
-  [-7,0,7].forEach((ox,i)=>{
-    const ly=12+Math.sin(P.walkT*2.2+i*1.1)*3.5;
-    ctx.beginPath(); ctx.ellipse(ox,ly,4,3,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(38,5,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.55)';
+  ctx.beginPath(); ctx.arc(37,4,1.3,0,Math.PI*2); ctx.fill();
+
+  // 目（キラキラ）
+  ctx.fillStyle='#1a1a1a';
+  ctx.beginPath(); ctx.arc(22,-3,2.8,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white';
+  ctx.beginPath(); ctx.arc(23,-4,1.1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(140,210,255,0.9)';
+  ctx.beginPath(); ctx.arc(23,-4,0.55,0,Math.PI*2); ctx.fill();
+
+  // ほっぺ（チーク）
+  ctx.fillStyle='rgba(255,130,90,0.38)';
+  ctx.beginPath(); ctx.arc(30,4,5,0,Math.PI*2); ctx.fill();
+
+  // にっこり口
+  ctx.strokeStyle='#8B6040'; ctx.lineWidth=1.6;
+  ctx.beginPath(); ctx.arc(34,10,4,0.25,Math.PI-0.25); ctx.stroke();
+
+  // 耳（丸耳）
+  ctx.fillStyle='#3D1800';
+  ctx.beginPath(); ctx.ellipse(14,-16,7,9,-0.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#6B3010';
+  ctx.beginPath(); ctx.ellipse(14,-16,4.5,6.5,-0.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,160,130,0.5)';
+  ctx.beginPath(); ctx.ellipse(14,-16,2.5,4,-0.2,0,Math.PI*2); ctx.fill();
+
+  // トゲ（焦茶＋白の二層・ふさふさ）
+  const spines=[
+    {x:-20,h:22,a:-0.42},{x:-14,h:26,a:-0.26},{x:-7,h:29,a:-0.12},
+    {x:0,h:30,a:0.0},{x:7,h:28,a:0.13},{x:14,h:25,a:0.27},{x:20,h:20,a:0.40}
+  ];
+  spines.forEach(({x,h,a},i)=>{
+    ctx.save(); ctx.translate(x,-8);
+    ctx.rotate(a+Math.sin(sfTimer*0.09+i*0.9)*0.07);
+    ctx.fillStyle='#3D1800';
+    ctx.beginPath(); ctx.moveTo(-4.5,0); ctx.quadraticCurveTo(-2,-h*0.6,0,-h); ctx.quadraticCurveTo(2,-h*0.6,4.5,0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#2A1000';
+    ctx.beginPath(); ctx.moveTo(-1.5,-h*0.55); ctx.lineTo(0,-h); ctx.lineTo(1.5,-h*0.55); ctx.closePath(); ctx.fill();
+    ctx.restore();
   });
+  spines.forEach(({x,h,a},i)=>{
+    ctx.save(); ctx.translate(x+1.5,-8);
+    ctx.rotate(a+Math.sin(sfTimer*0.09+i*0.9+0.5)*0.07-0.08);
+    ctx.fillStyle='#F2EFE5';
+    ctx.beginPath(); ctx.moveTo(-3.5,0); ctx.quadraticCurveTo(-1.5,-h*0.55,0,-h*0.92); ctx.quadraticCurveTo(1.5,-h*0.55,3.5,0); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  });
+
   ctx.restore(); // scaleを戻す
 
-  // ── バニーライダー ────────────────────────────────
-  // ハリネズミの背（hcy - 39 = 体の上端、3倍なので13*3=39）に乗る
-  const riderY = hcy + bob*3 - 39;
+  // ── バニーライダー（ハリネズミのトゲの上に着座） ──────
+  // 射撃ステージと同比率: 基準点から -34*sc 上
+  const riderY = hcy + bob - 34*sc;
   ctx.save();
   ctx.translate(cx, riderY);
   const fn=charType==='pink'?drawPink:drawWhite;
