@@ -1111,6 +1111,8 @@ let s4Grid=[], s4Bombs=[], s4Explosions=[];
 let s4Enemies4=[], s4GameT4=0;
 let s4ExitOpen=false, s4WinCD4=-1, s4BombCD=0;
 let s4BombRange=3, s4PowerItems=[], s4PowerTimer=0;
+let s4SpeedUpDropped=false, s4LifeUpDropped=false, s4SpeedActive=false;
+let s4DropItems=[];
 
 function initStage3(){
   P.y = H/2 - 20;
@@ -2001,6 +2003,8 @@ function initStage4(){
   s4Enemies4=[]; s4GameT4=0;
   s4ExitOpen=false; s4WinCD4=-1; s4BombCD=0;
   s4BombRange=S4_BRANGE; s4PowerItems=[]; s4PowerTimer=0;
+  s4SpeedUpDropped=false; s4LifeUpDropped=false; s4SpeedActive=false;
+  s4DropItems=[];
   platforms=[]; enemies=[]; items=[]; bgTrees=[];
   particles=[]; floatTxts=[];
 
@@ -2106,7 +2110,19 @@ function s4Explode(br,bc,range){
       if(nr<0||nr>=S4_ROWS||nc<0||nc>=S4_COLS) break;
       if(s4Grid[nr][nc]===1) break; // 硬い壁でストップ
       cells.push({r:nr,c:nc});
-      if(s4Grid[nr][nc]===2){ s4Grid[nr][nc]=0; break; } // ソフトブロック破壊
+      if(s4Grid[nr][nc]===2){
+        s4Grid[nr][nc]=0;
+        // ランダムアイテムドロップ（各種1回まで、40%の確率）
+        const _avail=[];
+        if(!s4SpeedUpDropped) _avail.push('speed');
+        if(!s4LifeUpDropped)  _avail.push('life');
+        if(_avail.length>0 && Math.random()<0.40){
+          const _type=_avail[Math.floor(Math.random()*_avail.length)];
+          if(_type==='speed') s4SpeedUpDropped=true; else s4LifeUpDropped=true;
+          s4DropItems.push({x:S4_OX+nc*S4_TILE+S4_TILE/2, y:S4_OY+nr*S4_TILE+S4_TILE/2, type:_type, t:0, on:true});
+        }
+        break;
+      } // ソフトブロック破壊
     }
   });
   s4Explosions.push({cells,timer:45});
@@ -2163,8 +2179,9 @@ function updateStage4(){
   const mr=keys['ArrowRight']||keys['KeyD'];
   const mu=keys['ArrowUp']||keys['KeyW'];
   const md=keys['ArrowDown']||keys['KeyS'];
-  let dvx=mr?S4_SPD4:ml?-S4_SPD4:0;
-  let dvy=md?S4_SPD4:mu?-S4_SPD4:0;
+  const _s4spd = s4SpeedActive ? S4_SPD4*2 : S4_SPD4;
+  let dvx=mr?_s4spd:ml?-_s4spd:0;
+  let dvy=md?_s4spd:mu?-_s4spd:0;
   if(dvx&&dvy){ dvx*=0.707; dvy*=0.707; }
   if(mr||ml) P.facing=mr?1:-1;
 
@@ -2217,6 +2234,26 @@ function updateStage4(){
       beep(440,0.1,0.08,'sine'); beep(660,0.12,0.1,'sine',0.08); beep(880,0.15,0.15,'sine',0.16);
       spawnParticles(pw.x,pw.y,'#FF4500',14,'star');
       spawnText(pw.x,pw.y-20,'💥 爆弾パワーUP！','#FF4500');
+    }
+  }
+
+  // スピードUP / ライフUP アイテム取得判定
+  for(let i=s4DropItems.length-1;i>=0;i--){
+    const it=s4DropItems[i]; it.t++;
+    if(!it.on) continue;
+    if(P.x<it.x+14&&P.x+P.w>it.x-14&&P.y<it.y+14&&P.y+P.h>it.y-14){
+      it.on=false;
+      if(it.type==='speed'){
+        s4SpeedActive=true;
+        beep(660,0.1,0.1,'sine'); beep(880,0.12,0.12,'sine',0.08); beep(1100,0.15,0.18,'sine',0.16);
+        spawnParticles(it.x,it.y,'#FFD700',14,'star');
+        spawnText(it.x,it.y-20,'⚡ スピード２倍！','#FFD700');
+      } else {
+        lives=3;
+        beep(523,0.15,0.12,'sine'); beep(659,0.12,0.1,'sine',0.1); beep(784,0.2,0.18,'sine',0.2);
+        spawnParticles(it.x,it.y,'#FF69B4',14,'star');
+        spawnText(it.x,it.y-20,'❤️ ライフ全回復！','#FF69B4');
+      }
     }
   }
 
@@ -2566,13 +2603,13 @@ function drawS4HUD(){
 }
 
 function drawS4PowerItems(){
+  // 既存：爆弾パワーアップ
   s4PowerItems.forEach(pw=>{
     if(!pw.on) return;
     const glow=0.6+Math.sin(pw.t*0.14)*0.4;
     ctx.save();
     ctx.globalAlpha=glow;
     ctx.shadowColor='#FF4500'; ctx.shadowBlur=16;
-    // 六角形背景
     ctx.fillStyle='#FF4500';
     ctx.beginPath();
     for(let i=0;i<6;i++){
@@ -2584,6 +2621,26 @@ function drawS4PowerItems(){
     ctx.shadowBlur=0;
     ctx.fillStyle='#fff'; ctx.font='bold 14px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText('💥',pw.x,pw.y);
+    ctx.textBaseline='alphabetic';
+    ctx.globalAlpha=1;
+    ctx.restore();
+  });
+
+  // 木箱ドロップ：スピードUP / ライフUP
+  s4DropItems.forEach(it=>{
+    if(!it.on) return;
+    const glow=0.65+Math.sin(it.t*0.12)*0.35;
+    const col=it.type==='speed'?'#FFD700':'#FF69B4';
+    const icon=it.type==='speed'?'⚡':'❤️';
+    ctx.save();
+    ctx.globalAlpha=glow;
+    ctx.shadowColor=col; ctx.shadowBlur=18;
+    // 円形背景
+    ctx.fillStyle=col;
+    ctx.beginPath(); ctx.arc(it.x,it.y,13,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#fff'; ctx.font='13px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(icon,it.x,it.y+1);
     ctx.textBaseline='alphabetic';
     ctx.globalAlpha=1;
     ctx.restore();
