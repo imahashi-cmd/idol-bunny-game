@@ -2061,16 +2061,29 @@ function updateStageForest(){
   if(sfTripleTimer>0){ sfTripleTimer--; if(sfTripleTimer===0){ sfHasTriple=false; spawnText(P.x+P.w/2,P.y-20,'ビーム終了','#aaa'); } }
   if(P.invTimer>0) P.invTimer--;
 
-  // ── プレイヤー移動 ───────────────────────────────
+  // ── プレイヤー移動（木で止まる） ─────────────────────
   const ml=keys['ArrowLeft']||keys['KeyA'], mr=keys['ArrowRight']||keys['KeyD'];
   const mu=keys['ArrowUp']||keys['KeyW'],   md=keys['ArrowDown']||keys['KeyS'];
-  if(ml){ P.x-=SF_PLR_SPD; P.facing=-1; }
-  if(mr){ P.x+=SF_PLR_SPD; P.facing=1; }
-  if(mu) P.y-=SF_PLR_SPD;
-  if(md) P.y+=SF_PLR_SPD;
+  // 木との衝突矩形チェック（幹エリア）
+  const _sfHitsTree=(nx,ny)=>sfTrees.some(t=>{
+    const tx=t.x+t.w/2-11, ty=t.y+t.h-46, tw=22, th=52;
+    return nx<tx+tw&&nx+P.w>tx&&ny<ty+th&&ny+P.h>ty;
+  });
+  if(mr){ if(!_sfHitsTree(P.x+SF_PLR_SPD,P.y)) P.x+=SF_PLR_SPD; P.facing=1; }
+  if(ml){ if(!_sfHitsTree(P.x-SF_PLR_SPD,P.y)) P.x-=SF_PLR_SPD; P.facing=-1; }
+  if(mu){ if(!_sfHitsTree(P.x,P.y-SF_PLR_SPD)) P.y-=SF_PLR_SPD; }
+  if(md){ if(!_sfHitsTree(P.x,P.y+SF_PLR_SPD)) P.y+=SF_PLR_SPD; }
   P.x=Math.max(12,Math.min(W-P.w-12,P.x));
   P.y=Math.max(260,Math.min(H-P.h-8,P.y));
   if(ml||mr||mu||md) P.walkT+=0.14;
+  // 木がスクロールしてきてプレイヤーに被った場合は横に押し出す
+  for(const t of sfTrees){
+    const tx=t.x+t.w/2-11, ty=t.y+t.h-46, tw=22, th=52;
+    if(P.x<tx+tw&&P.x+P.w>tx&&P.y<ty+th&&P.y+P.h>ty){
+      const push=(P.x+P.w/2<tx+tw/2)?-4:4;
+      P.x=Math.max(12,Math.min(W-P.w-12,P.x+push));
+    }
+  }
 
   // ── 射撃 ─────────────────────────────────────────
   if((just['Space']||just['Enter'])&&sfFireCD<=0){
@@ -2330,8 +2343,8 @@ function drawStageForestScene(){
     ctx.restore();
   });
 
-  // 敵（ハリネズミ）
-  sfEnemies.forEach(e=>{ if(e.on) _sfDrawHedgehog(e.x+16,e.y+15,e.elite); });
+  // 敵（カラス）※ハリネズミは友達なので別の敵に変更
+  sfEnemies.forEach(e=>{ if(e.on) _sfDrawCrow(e.x+16,e.y+10,e.elite); });
 
   // 敵弾
   ctx.fillStyle='#FF6347';
@@ -2524,14 +2537,93 @@ function _sfDrawPlayer(){
   const blink=P.invTimer>0&&Math.floor(P.invTimer/5)%2===0;
   if(blink) return;
   ctx.save();
+  const cx=P.x+P.w/2;
+  // ハリネズミの走りのボブ
+  const bob=Math.sin(P.walkT*2.2)*3;
+  const hcy=P.y+P.h-6+bob; // ハリネズミ中心Y
+
+  // ── 乗り物ハリネズミ ──────────────────────────────
+  // 体
+  ctx.fillStyle='#7B4F2F';
+  ctx.beginPath(); ctx.ellipse(cx,hcy,20,13,0,0,Math.PI*2); ctx.fill();
+  // トゲ（背中側）
+  ctx.strokeStyle='#4A2C0E'; ctx.lineWidth=2.2;
+  for(let i=0;i<10;i++){
+    const a=(i/10)*Math.PI; // 上半分のみ
+    const bx=cx+Math.cos(a)*19, by=hcy-Math.sin(a)*12;
+    const ex=cx+Math.cos(a)*27, ey=hcy-Math.sin(a)*19;
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(ex,ey); ctx.stroke();
+  }
+  // 顔（向いている方向）
+  const faceDir=P.facing;
+  ctx.fillStyle='#F5CBA7';
+  ctx.beginPath(); ctx.ellipse(cx+faceDir*13,hcy+1,8,6,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.arc(cx+faceDir*17,hcy,2.2,0,Math.PI*2); ctx.fill();
+  // 小さな鼻
+  ctx.fillStyle='#FF9999';
+  ctx.beginPath(); ctx.arc(cx+faceDir*20,hcy+2,1.5,0,Math.PI*2); ctx.fill();
+  // 足（走りアニメ）
+  ctx.fillStyle='#5C3A1E';
+  const legL=Math.sin(P.walkT*2)*5;
+  [-8,0,8].forEach((ox,i)=>{
+    const ly=hcy+12+Math.sin(P.walkT*2+i*1.1)*4;
+    ctx.beginPath(); ctx.ellipse(cx+ox,ly,4,3,0,0,Math.PI*2); ctx.fill();
+  });
+
+  // ── バニーライダー ────────────────────────────────
+  const riderCY = hcy-17+bob; // ハリネズミの背に乗っている
+  ctx.save();
+  ctx.translate(cx, riderCY);
+  ctx.scale(0.88, 0.88);
   const fn=charType==='pink'?drawPink:drawWhite;
-  fn(P.x+P.w/2, P.y+P.h, P.facing, P.walkT, false, false, 0);
-  // ３方向ビームのオーラ表示
+  fn(0, 0, P.facing, P.walkT, false, false, 0);
+  ctx.restore();
+
+  // ３方向ビームのオーラ
   if(sfHasTriple){
-    ctx.globalAlpha=0.5+Math.sin(sfTimer*0.22)*0.4;
+    ctx.globalAlpha=0.45+Math.sin(sfTimer*0.22)*0.35;
     ctx.strokeStyle='#00BFFF'; ctx.lineWidth=2;
     ctx.shadowColor='#00BFFF'; ctx.shadowBlur=14;
-    ctx.beginPath(); ctx.arc(P.x+P.w/2,P.y+P.h/2,20,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx,P.y+P.h/2,26,22,0,0,Math.PI*2); ctx.stroke();
+    ctx.shadowBlur=0; ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
+
+// 敵：カラス（ハリネズミは友達なので別の敵に変更）
+function _sfDrawCrow(cx,cy,elite=false){
+  ctx.save();
+  const flap=Math.sin(sfTimer*0.25)*0.3;
+  // 体
+  ctx.fillStyle=elite?'#1a1050':'#111827';
+  ctx.beginPath(); ctx.ellipse(cx,cy,14,9,-0.15,0,Math.PI*2); ctx.fill();
+  // 翼（羽ばたきアニメ）
+  ctx.fillStyle=elite?'#2a1a70':'#1a2540';
+  ctx.save(); ctx.translate(cx,cy);
+  ctx.rotate(flap);
+  ctx.beginPath(); ctx.moveTo(-13,0); ctx.lineTo(-28,-12); ctx.lineTo(-22,4); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  ctx.save(); ctx.translate(cx,cy);
+  ctx.rotate(-flap);
+  ctx.beginPath(); ctx.moveTo(13,0); ctx.lineTo(28,-12); ctx.lineTo(22,4); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // 頭
+  ctx.fillStyle=elite?'#1a1050':'#111827';
+  ctx.beginPath(); ctx.arc(cx+11,cy-7,8,0,Math.PI*2); ctx.fill();
+  // くちばし
+  ctx.fillStyle='#FFAA00';
+  ctx.beginPath(); ctx.moveTo(cx+18,cy-7); ctx.lineTo(cx+26,cy-5); ctx.lineTo(cx+18,cy-4); ctx.closePath(); ctx.fill();
+  // 目
+  ctx.fillStyle=elite?'#FF00FF':'#FF3300';
+  ctx.beginPath(); ctx.arc(cx+13,cy-9,2.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(cx+14,cy-10,0.9,0,Math.PI*2); ctx.fill();
+  // エリートのオーラ
+  if(elite){
+    ctx.globalAlpha=0.3+Math.sin(sfTimer*0.18)*0.2;
+    ctx.strokeStyle='#AA00FF'; ctx.lineWidth=2;
+    ctx.shadowColor='#AA00FF'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.ellipse(cx,cy,18,12,-0.15,0,Math.PI*2); ctx.stroke();
     ctx.shadowBlur=0; ctx.globalAlpha=1;
   }
   ctx.restore();
