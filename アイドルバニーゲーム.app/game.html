@@ -342,6 +342,12 @@ function startBGMWin() {
 function startBGM6() {
   bgmStage = 6; // BGMなし（合成音のみ）― _resumeBGM() が誤再生しないよう記録
 }
+function startBGMForest() {
+  if (bgmRunning) return;
+  bgmRunning = true; bgmStage = 7;
+  const a = getBGM(); if (!a) return;
+  a.currentTime = 0; a.playbackRate = 1.18; a.play().catch(()=>{});
+}
 function stopBGM() {
   bgmRunning = false;
   if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; }
@@ -842,6 +848,7 @@ function initGame(stage=1) {
   if(stage===5) { startBGM6(); initStage6(); return; }
   if(stage===4) { startBGM5(); initStage5(); return; }
   if(stage===3) { startBGM4(); initStage4(); return; }
+  if(stage===6) { startBGMForest(); initStageForest(); state='play'; return; }
   if(stage===2) { startBGM3(); initStage3(); return; }
   startBGM();
 
@@ -2012,6 +2019,549 @@ function drawStage3Scene(){
   drawFX();
   drawS3HUD();
   drawTouchControlsS3();
+}
+
+// ════════════════════════════════════════════
+//  STAGE FOREST – 縦型シューティング（森の中）
+// ════════════════════════════════════════════
+const SF_PLR_SPD=4.2, SF_BSPD=11, SF_BOSS_MAX_HP=20;
+let sfTimer=0, sfScrollY=0;
+let sfBullets=[], sfEnemies=[], sfBushes=[], sfItems=[];
+let sfTrees=[], sfPits=[], sfEBullets=[];
+let sfBoss=null, sfBossAppeared=false, sfKillCount=0;
+let sfHasTriple=false, sfTripleTimer=0, sfFireCD=0;
+let sfESpawnCD=0, sfTSpawnCD=0, sfBSpawnCD=0, sfPSpawnCD=0;
+
+function initStageForest(){
+  sfTimer=0; sfScrollY=0;
+  sfBullets=[]; sfEnemies=[]; sfBushes=[]; sfItems=[];
+  sfTrees=[]; sfPits=[]; sfEBullets=[];
+  sfBoss=null; sfBossAppeared=false; sfKillCount=0;
+  sfHasTriple=false; sfTripleTimer=0; sfFireCD=0;
+  sfESpawnCD=80; sfTSpawnCD=70; sfBSpawnCD=110; sfPSpawnCD=320;
+  P.x=W/2-15; P.y=400; P.w=30; P.h=30;
+  P.vx=0; P.vy=0; P.facing=1; P.invTimer=0; P.walkT=0; P.dancing=false;
+  goalReached=false;
+  document.getElementById('hint').textContent=
+    '← → ↑ ↓で移動 | Spaceで星を発射 | 草むらにアイテムが潜む！ 敵12体倒してパディントンに挑もう！';
+}
+
+function sfHitPlayer(){
+  if(P.invTimer>0) return;
+  sfxHurt(); lives--;
+  P.invTimer=140;
+  spawnParticles(P.x+P.w/2,P.y+P.h/2,'#FF69B4',12,'circle');
+  if(lives<=0){ stopBGM(); state='gameover'; gameoverTimer=0; }
+}
+
+function updateStageForest(){
+  if(state!=='play') return;
+  sfTimer++; sfScrollY+=1.6;
+  if(sfFireCD>0) sfFireCD--;
+  if(sfTripleTimer>0){ sfTripleTimer--; if(sfTripleTimer===0){ sfHasTriple=false; spawnText(P.x+P.w/2,P.y-20,'ビーム終了','#aaa'); } }
+  if(P.invTimer>0) P.invTimer--;
+
+  // ── プレイヤー移動 ───────────────────────────────
+  const ml=keys['ArrowLeft']||keys['KeyA'], mr=keys['ArrowRight']||keys['KeyD'];
+  const mu=keys['ArrowUp']||keys['KeyW'],   md=keys['ArrowDown']||keys['KeyS'];
+  if(ml){ P.x-=SF_PLR_SPD; P.facing=-1; }
+  if(mr){ P.x+=SF_PLR_SPD; P.facing=1; }
+  if(mu) P.y-=SF_PLR_SPD;
+  if(md) P.y+=SF_PLR_SPD;
+  P.x=Math.max(12,Math.min(W-P.w-12,P.x));
+  P.y=Math.max(260,Math.min(H-P.h-8,P.y));
+  if(ml||mr||mu||md) P.walkT+=0.14;
+
+  // ── 射撃 ─────────────────────────────────────────
+  if((just['Space']||just['Enter'])&&sfFireCD<=0){
+    sfFireCD=12;
+    beep(880,0.06,0.09,'sine'); beep(1100,0.04,0.06,'sine',0.04);
+    const bx=P.x+P.w/2, by=P.y;
+    sfBullets.push({x:bx,y:by,vx:0,vy:-SF_BSPD});
+    if(sfHasTriple){
+      sfBullets.push({x:bx,y:by,vx:-5,vy:-9.5});
+      sfBullets.push({x:bx,y:by,vx: 5,vy:-9.5});
+    }
+    spawnParticles(bx,by,'#FFD700',2,'star');
+  }
+
+  // ── 自弾更新 ─────────────────────────────────────
+  for(let i=sfBullets.length-1;i>=0;i--){
+    const b=sfBullets[i]; b.x+=b.vx; b.y+=b.vy;
+    if(b.y<-20||b.x<-20||b.x>W+20) sfBullets.splice(i,1);
+  }
+
+  // ── 敵弾更新 ─────────────────────────────────────
+  for(let i=sfEBullets.length-1;i>=0;i--){
+    const b=sfEBullets[i]; b.x+=b.vx; b.y+=b.vy;
+    if(b.y>H+20||b.x<-20||b.x>W+20){ sfEBullets.splice(i,1); continue; }
+    if(P.invTimer<=0&&b.x>P.x-4&&b.x<P.x+P.w+4&&b.y>P.y&&b.y<P.y+P.h){
+      sfEBullets.splice(i,1); sfHitPlayer();
+    }
+  }
+
+  if(!sfBossAppeared){
+    // ── 木を生成 ─────────────────────────────────────
+    if(--sfTSpawnCD<=0){
+      sfTSpawnCD=55+Math.random()*70|0;
+      sfTrees.push({x:25+Math.random()*(W-90)|0, y:-130, w:50+Math.random()*40|0, h:110+Math.random()*50|0});
+    }
+    sfTrees.forEach(t=>{ t.y+=1.6; });
+    for(let i=sfTrees.length-1;i>=0;i--) if(sfTrees[i].y>H+160) sfTrees.splice(i,1);
+
+    // ── 草むらを生成 ──────────────────────────────────
+    if(--sfBSpawnCD<=0){
+      sfBSpawnCD=100+Math.random()*100|0;
+      const hasItem=Math.random()<0.45;
+      sfBushes.push({x:30+Math.random()*(W-80)|0, y:-45, w:52, h:30, hp:1,
+        itemType:hasItem?(Math.random()<0.5?'heart':'triple'):null, on:true});
+    }
+    sfBushes.forEach(b=>{ b.y+=1.6; });
+    for(let i=sfBushes.length-1;i>=0;i--) if(!sfBushes[i].on||sfBushes[i].y>H+60) sfBushes.splice(i,1);
+
+    // ── 落とし穴を生成 ────────────────────────────────
+    if(--sfPSpawnCD<=0){
+      sfPSpawnCD=360+Math.random()*200|0;
+      sfPits.push({x:60+Math.random()*(W-200)|0, y:-38, w:120+Math.random()*80|0, h:34});
+    }
+    sfPits.forEach(p=>{ p.y+=1.6; });
+    for(let i=sfPits.length-1;i>=0;i--) if(sfPits[i].y>H+60) sfPits.splice(i,1);
+
+    // ── 敵（ハリネズミ）を生成 ────────────────────────
+    if(--sfESpawnCD<=0 && sfKillCount<12){
+      sfESpawnCD=90+Math.random()*90|0;
+      const pat=Math.random()*3|0, elite=sfKillCount>5&&Math.random()<0.3;
+      sfEnemies.push({x:35+Math.random()*(W-70)|0, y:-40,
+        vx:(Math.random()-0.5)*1.8, vy:1.6+Math.random()*0.9,
+        hp:elite?2:1, pat, t:0, on:true, elite,
+        fCD:190+Math.random()*180|0, phase:Math.random()*Math.PI*2});
+    }
+  }
+
+  // ── ボス出現 ─────────────────────────────────────
+  if(!sfBossAppeared && sfKillCount>=12 && sfEnemies.every(e=>!e.on)){
+    sfBossAppeared=true;
+    sfBoss={x:W/2-52,y:-100,w:104,h:88,hp:SF_BOSS_MAX_HP,t:0,vx:2.2,fCD:80};
+    spawnText(W/2,H/2-60,'パディントン 再び現れた！','#FF4500');
+    beep(150,0.6,0.2,'sawtooth'); beep(120,0.5,0.18,'sawtooth',0.35);
+  }
+
+  // ── ボス更新 ─────────────────────────────────────
+  if(sfBoss && sfBoss.hp>0){
+    const bo=sfBoss; bo.t++;
+    if(bo.y<55) bo.y+=2.8;
+    bo.x+=bo.vx;
+    if(bo.x<20||bo.x>W-bo.w-20) bo.vx*=-1;
+    bo.fCD--;
+    if(bo.fCD<=0){
+      const spd=bo.hp<=5?3.2:bo.hp<=10?2.4:1.8;
+      if(bo.hp>10){
+        for(let a=-2;a<=2;a++) sfEBullets.push({x:bo.x+bo.w/2,y:bo.y+bo.h,vx:a*1.3,vy:spd});
+        bo.fCD=85;
+      } else if(bo.hp>5){
+        const dx=P.x+P.w/2-(bo.x+bo.w/2), dy=P.y-(bo.y+bo.h);
+        const d=Math.sqrt(dx*dx+dy*dy)||1;
+        sfEBullets.push({x:bo.x+bo.w/2,y:bo.y+bo.h,vx:dx/d*spd,vy:dy/d*spd});
+        sfEBullets.push({x:bo.x+bo.w/2,y:bo.y+bo.h,vx:(dx/d+0.5)*spd,vy:dy/d*spd});
+        sfEBullets.push({x:bo.x+bo.w/2,y:bo.y+bo.h,vx:(dx/d-0.5)*spd,vy:dy/d*spd});
+        bo.fCD=55;
+      } else {
+        for(let a=-3;a<=3;a++) sfEBullets.push({x:bo.x+bo.w/2,y:bo.y+bo.h,vx:a*1.6,vy:spd});
+        bo.fCD=40;
+      }
+      beep(180,0.12,0.09,'square');
+    }
+    // 自弾がボスにヒット
+    for(let i=sfBullets.length-1;i>=0;i--){
+      const b=sfBullets[i];
+      if(b.x>bo.x&&b.x<bo.x+bo.w&&b.y>bo.y&&b.y<bo.y+bo.h){
+        sfBullets.splice(i,1); bo.hp--;
+        spawnParticles(b.x,b.y,'#FF6600',4,'circle');
+        beep(280,0.08,0.07,'sawtooth');
+        if(bo.hp<=0){
+          spawnParticles(bo.x+bo.w/2,bo.y+bo.h/2,'#FFD700',22,'star');
+          spawnText(W/2,H/2,'パディントン撃破！ +1000','#FFD700');
+          score+=1000; sfxFanfare();
+          triggerWin();
+        }
+      }
+    }
+    // ボスとプレイヤー接触
+    if(P.invTimer<=0&&P.x<bo.x+bo.w&&P.x+P.w>bo.x&&P.y<bo.y+bo.h&&P.y+P.h>bo.y) sfHitPlayer();
+  }
+
+  // ── 敵更新 ───────────────────────────────────────
+  for(let i=sfEnemies.length-1;i>=0;i--){
+    const e=sfEnemies[i];
+    if(!e.on){ sfEnemies.splice(i,1); continue; }
+    e.t++;
+    e.y+=e.vy;
+    if(e.pat===1) e.x+=Math.sin(e.t*0.09+e.phase)*2.8;
+    else if(e.pat===2) e.x+=Math.cos(e.t*0.11+e.phase)*2.2;
+    else e.x+=e.vx;
+    e.x=Math.max(10,Math.min(W-32,e.x));
+    // 敵弾（一定体数倒してから発射）
+    if(--e.fCD<=0 && sfKillCount>4){
+      e.fCD=160+Math.random()*140|0;
+      const dx=P.x+P.w/2-e.x, dy=P.y+P.h/2-e.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+      sfEBullets.push({x:e.x+16,y:e.y+16,vx:dx/d*2.4,vy:dy/d*2.4});
+      beep(240,0.07,0.05,'square');
+    }
+    if(e.y>H+60){ sfEnemies.splice(i,1); continue; }
+    // 自弾ヒット
+    let hit=false;
+    for(let j=sfBullets.length-1;j>=0;j--){
+      const b=sfBullets[j];
+      if(b.x>e.x&&b.x<e.x+32&&b.y>e.y&&b.y<e.y+30){
+        sfBullets.splice(j,1); e.hp--; hit=true;
+        spawnParticles(b.x,b.y,'#FFD700',5,'star'); break;
+      }
+    }
+    if(hit&&e.hp<=0){
+      e.on=false; sfKillCount++;
+      const pts=e.elite?400:200; score+=pts;
+      spawnParticles(e.x+16,e.y+15,'#FF8C00',8,'circle');
+      spawnText(e.x+16,e.y,`+${pts}`,'#FFD700');
+      beep(440,0.1,0.11,'sine'); beep(550,0.07,0.09,'sine',0.07);
+    }
+    // プレイヤー接触
+    if(P.invTimer<=0&&P.x<e.x+28&&P.x+P.w>e.x+4&&P.y<e.y+26&&P.y+P.h>e.y+4) sfHitPlayer();
+  }
+
+  // ── 草むら（弾ヒット＋アイテム出現） ────────────────
+  for(let i=sfBushes.length-1;i>=0;i--){
+    const b=sfBushes[i]; if(!b.on) continue;
+    for(let j=sfBullets.length-1;j>=0;j--){
+      const bull=sfBullets[j];
+      if(bull.x>b.x&&bull.x<b.x+b.w&&bull.y>b.y&&bull.y<b.y+b.h){
+        sfBullets.splice(j,1); b.on=false;
+        spawnParticles(b.x+b.w/2,b.y+b.h/2,'#228B22',6,'circle');
+        beep(280,0.1,0.07,'triangle');
+        if(b.itemType) sfItems.push({x:b.x+b.w/2-10,y:b.y,type:b.itemType,vy:1.4,t:0,on:true});
+        break;
+      }
+    }
+  }
+
+  // ── アイテム ─────────────────────────────────────
+  for(let i=sfItems.length-1;i>=0;i--){
+    const it=sfItems[i]; if(!it.on){ sfItems.splice(i,1); continue; }
+    it.y+=it.vy; it.t++;
+    if(it.y>H+60){ sfItems.splice(i,1); continue; }
+    if(P.x<it.x+22&&P.x+P.w>it.x&&P.y<it.y+22&&P.y+P.h>it.y){
+      it.on=false;
+      if(it.type==='heart'){
+        lives=Math.min(lives+1,9);
+        beep(523,0.1,0.12,'sine'); beep(659,0.1,0.1,'sine',0.1); beep(784,0.15,0.15,'sine',0.2);
+        spawnParticles(it.x+11,it.y+11,'#FF69B4',10,'circle');
+        spawnText(it.x+11,it.y-10,'❤️ ライフ+1！','#FF69B4');
+      } else {
+        sfHasTriple=true; sfTripleTimer=600;
+        beep(660,0.1,0.1,'sine'); beep(880,0.12,0.12,'sine',0.08); beep(1100,0.15,0.18,'sine',0.16);
+        spawnParticles(it.x+11,it.y+11,'#00BFFF',12,'star');
+        spawnText(it.x+11,it.y-10,'✨ ３方向ビーム！','#00BFFF');
+      }
+    }
+  }
+
+  // ── 落とし穴 ─────────────────────────────────────
+  for(const pit of sfPits){
+    if(P.invTimer<=0&&P.x+4<pit.x+pit.w&&P.x+P.w-4>pit.x&&P.y+P.h-4>pit.y&&P.y+8<pit.y+pit.h){
+      sfHitPlayer();
+      P.y=Math.min(P.y,pit.y-P.h-2); // ピットを越えないように上に弾く
+    }
+  }
+
+  updateFX();
+}
+
+// ── 森ステージ 描画 ─────────────────────────────────
+function drawStageForestScene(){
+  _sfDrawBG();
+
+  // 落とし穴
+  ctx.save();
+  sfPits.forEach(p=>{
+    ctx.fillStyle='#080808';
+    ctx.fillRect(p.x,p.y,p.w,p.h);
+    for(let i=0;i<p.w;i+=14){
+      ctx.fillStyle=(Math.floor(i/14)%2===0)?'rgba(139,0,0,0.5)':'transparent';
+      ctx.fillRect(p.x+i,p.y,14,p.h);
+    }
+    ctx.strokeStyle='#CC0000'; ctx.lineWidth=1.5;
+    ctx.strokeRect(p.x,p.y,p.w,p.h);
+    ctx.font='10px Arial'; ctx.fillStyle='#FF4444'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('⚠', p.x+p.w/2, p.y+p.h/2);
+  });
+  ctx.restore();
+
+  // 木（背景より手前）
+  sfTrees.forEach(tr=>_sfDrawTree(tr));
+
+  // 草むら
+  sfBushes.forEach(b=>{
+    if(!b.on) return;
+    ctx.save();
+    // 草の塊を複数の円で表現
+    [0,0.25,0.5,0.75,1].forEach((t,i)=>{
+      const bx=b.x+t*b.w, by=b.y+b.h-10+Math.sin(i*2.1)*5;
+      const r=11+Math.sin(i*1.7)*4;
+      ctx.fillStyle=i%2===0?'#2E7D32':'#388E3C';
+      ctx.beginPath(); ctx.arc(bx,by,r,Math.PI,0); ctx.fill();
+    });
+    ctx.fillStyle='#1B5E20'; ctx.fillRect(b.x,b.y+b.h-8,b.w,8);
+    if(b.itemType){
+      const glow=0.5+Math.sin(sfTimer*0.15)*0.4;
+      ctx.globalAlpha=glow;
+      ctx.fillStyle=b.itemType==='heart'?'#FF69B4':'#00BFFF';
+      ctx.beginPath(); ctx.arc(b.x+b.w/2,b.y+b.h/2-5,5,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=1;
+    }
+    ctx.restore();
+  });
+
+  // アイテム
+  sfItems.forEach(it=>{
+    if(!it.on) return;
+    ctx.save();
+    ctx.globalAlpha=0.8+Math.sin(it.t*0.2)*0.2;
+    ctx.font='22px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(it.type==='heart'?'❤️':'✨', it.x+11, it.y+11);
+    ctx.restore();
+  });
+
+  // 敵（ハリネズミ）
+  sfEnemies.forEach(e=>{ if(e.on) _sfDrawHedgehog(e.x+16,e.y+15,e.elite); });
+
+  // 敵弾
+  ctx.fillStyle='#FF6347';
+  sfEBullets.forEach(b=>{
+    ctx.beginPath(); ctx.arc(b.x,b.y,5,0,Math.PI*2); ctx.fill();
+  });
+
+  // ボス
+  if(sfBoss && sfBoss.hp>0) _sfDrawBoss();
+
+  // プレイヤー
+  _sfDrawPlayer();
+
+  // 自弾（星型）
+  sfBullets.forEach(b=>{
+    ctx.save();
+    ctx.fillStyle='#FFD700'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=8;
+    ctx.beginPath();
+    for(let i=0;i<10;i++){
+      const a=i/10*Math.PI*2-Math.PI/2, r=i%2===0?7:3;
+      if(i===0) ctx.moveTo(b.x+Math.cos(a)*r,b.y+Math.sin(a)*r);
+      else ctx.lineTo(b.x+Math.cos(a)*r,b.y+Math.sin(a)*r);
+    }
+    ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+    ctx.restore();
+  });
+
+  drawFX();
+  _sfDrawHUD();
+  drawTouchControlsS3(); // 射撃ボタンを流用
+}
+
+function _sfDrawBG(){
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#071A07'); grad.addColorStop(0.5,'#0E3810'); grad.addColorStop(1,'#1B5E20');
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+
+  // 遠景の木（シルエット、複数段でスクロール）
+  const drawFarTrees=(spd,alpha,col)=>{
+    ctx.save(); ctx.globalAlpha=alpha; ctx.fillStyle=col;
+    for(let i=0;i<10;i++){
+      const ox=(i*110+sfScrollY*spd)%W;
+      const ht=80+Math.sin(i*1.9)*30;
+      // 木シルエット（三角2段）
+      ctx.beginPath(); ctx.moveTo(ox,H-ht); ctx.lineTo(ox-22,H-ht+50); ctx.lineTo(ox+22,H-ht+50); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(ox,H-ht-30); ctx.lineTo(ox-16,H-ht+10); ctx.lineTo(ox+16,H-ht+10); ctx.closePath(); ctx.fill();
+      ctx.fillRect(ox-4,H-ht+50,8,ht-50);
+    }
+    ctx.restore();
+  };
+  drawFarTrees(0.18,0.25,'#0A2E0A');
+  drawFarTrees(0.28,0.35,'#0D3D0D');
+  drawFarTrees(0.45,0.50,'#1A5C1A');
+
+  // 地面のストライプ（スクロール）
+  const goff=sfScrollY%40;
+  ctx.fillStyle='#2E5C1A'; ctx.fillRect(0,H-70,W,70);
+  ctx.strokeStyle='#3A7A20'; ctx.lineWidth=1.5;
+  for(let y=H-70;y<H;y+=20){
+    const yo=y+goff%20;
+    ctx.beginPath(); ctx.moveTo(0,yo); ctx.lineTo(W,yo); ctx.stroke();
+  }
+  // パスライン
+  ctx.strokeStyle='rgba(180,160,80,0.18)'; ctx.lineWidth=3;
+  ctx.setLineDash([25,20]); ctx.beginPath();
+  ctx.moveTo(W/2,H-70); ctx.lineTo(W/2,H);
+  ctx.stroke(); ctx.setLineDash([]);
+}
+
+function _sfDrawTree(tr){
+  ctx.save();
+  const cx=tr.x+tr.w/2;
+  // 幹
+  ctx.fillStyle='#4A2C0E';
+  ctx.fillRect(cx-7,tr.y+tr.h-38,14,42);
+  // 樹冠（3層）
+  [[tr.h-52,tr.w*0.52],[tr.h-78,tr.w*0.40],[tr.h-100,tr.w*0.28]].forEach(([oy,r])=>{
+    ctx.fillStyle='#1A5C1A';
+    ctx.beginPath(); ctx.arc(cx,tr.y+oy,r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#2E7D32';
+    ctx.beginPath(); ctx.arc(cx-r*0.22,tr.y+oy-r*0.18,r*0.55,0,Math.PI*2); ctx.fill();
+  });
+  ctx.restore();
+}
+
+function _sfDrawHedgehog(cx,cy,elite=false){
+  ctx.save();
+  // 体
+  ctx.fillStyle=elite?'#4A2A10':'#6B3F1F';
+  ctx.beginPath(); ctx.ellipse(cx,cy,15,11,0.15,0,Math.PI*2); ctx.fill();
+  // トゲ
+  ctx.strokeStyle=elite?'#FF6600':'#3D2010'; ctx.lineWidth=1.8;
+  for(let i=0;i<9;i++){
+    const a=i/9*Math.PI*2-Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(a)*14,cy+Math.sin(a)*10);
+    ctx.lineTo(cx+Math.cos(a)*21,cy+Math.sin(a)*16);
+    ctx.stroke();
+  }
+  // 顔
+  ctx.fillStyle='#F5CBA7';
+  ctx.beginPath(); ctx.ellipse(cx+9,cy-2,7,6,0.25,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.arc(cx+13,cy-3,2.2,0,Math.PI*2); ctx.fill();
+  // エリートのオーラ
+  if(elite){
+    ctx.globalAlpha=0.35+Math.sin(sfTimer*0.2)*0.2;
+    ctx.strokeStyle='#FF4500'; ctx.lineWidth=2;
+    ctx.shadowColor='#FF4500'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.ellipse(cx,cy,19,14,0.15,0,Math.PI*2); ctx.stroke();
+    ctx.shadowBlur=0; ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
+
+function _sfDrawBoss(){
+  const bo=sfBoss;
+  ctx.save();
+  ctx.translate(bo.x+bo.w/2, bo.y+bo.h/2);
+  const pulse=1+Math.sin(bo.t*0.07)*0.03;
+  ctx.scale(pulse*0.85,pulse*0.85); // 通常の0.85倍サイズ（森版）
+
+  // ダッフルコート（青）
+  ctx.fillStyle='#1B4F9A';
+  ctx.beginPath(); ctx.ellipse(0,22,38,46,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#153D7A';
+  ctx.beginPath(); ctx.moveTo(-5,-4); ctx.lineTo(-4,44); ctx.lineTo(4,44); ctx.lineTo(5,-4); ctx.closePath(); ctx.fill();
+  [[0,4],[0,18],[0,32]].forEach(([bx,by])=>{
+    ctx.fillStyle='#6B3310';
+    ctx.beginPath(); ctx.roundRect(bx-7,by-3,14,5,3); ctx.fill();
+  });
+  // 毛皮・体
+  ctx.fillStyle='#A0723A';
+  ctx.beginPath(); ctx.ellipse(0,-1,19,11,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#8B5E28';
+  ctx.beginPath(); ctx.ellipse(0,22,32,40,0,0,Math.PI*2); ctx.fill();
+  // 頭
+  ctx.fillStyle='#A0723A';
+  ctx.beginPath(); ctx.arc(0,-28,27,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#B8864A';
+  ctx.beginPath(); ctx.arc(-5,-33,15,0,Math.PI*2); ctx.fill();
+  // 耳
+  [[-22,-50],[22,-50]].forEach(([ex,ey])=>{
+    ctx.fillStyle='#A0723A'; ctx.beginPath(); ctx.arc(ex,ey,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#C8966A'; ctx.beginPath(); ctx.arc(ex,ey,6,0,Math.PI*2); ctx.fill();
+  });
+  // 顔
+  ctx.fillStyle='#D4A870';
+  ctx.beginPath(); ctx.ellipse(0,-26,18,16,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#2a1500';
+  ctx.beginPath(); ctx.arc(-9,-31,6,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(9,-31,6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white';
+  ctx.beginPath(); ctx.arc(-7,-33,2.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(11,-33,2.5,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#2a1500'; ctx.lineWidth=2.2;
+  ctx.beginPath(); ctx.moveTo(-14,-40); ctx.lineTo(-4,-37); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(14,-40); ctx.lineTo(4,-37); ctx.stroke();
+  ctx.fillStyle='#1a0a00';
+  ctx.beginPath(); ctx.ellipse(0,-20,7,5,0,0,Math.PI*2); ctx.fill();
+  // ハット
+  ctx.fillStyle='#CC1111';
+  ctx.beginPath(); ctx.ellipse(0,-54,33,8,0,0,Math.PI*2); ctx.fill();
+  ctx.fillRect(-18,-72,36,20);
+  ctx.fillStyle='#AA0E0E'; ctx.fillRect(-16,-70,32,18);
+
+  ctx.restore();
+
+  // HPバー
+  const bx=bo.x, by2=bo.y-18;
+  ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(bx,by2,bo.w,12);
+  const ratio=bo.hp/SF_BOSS_MAX_HP;
+  ctx.fillStyle=ratio>0.5?'#44FF44':ratio>0.25?'#FFAA00':'#FF2200';
+  ctx.fillRect(bx,by2,bo.w*ratio,12);
+  ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(bx,by2,bo.w,12);
+  ctx.font='bold 10px Arial'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(`PADDINGTON HP ${bo.hp}/${SF_BOSS_MAX_HP}`,bx+bo.w/2,by2+6);
+
+  // フェーズ2以降のオーラ
+  if(bo.hp<=10){
+    ctx.save();
+    ctx.globalAlpha=0.15+Math.sin(sfTimer*0.18)*0.1;
+    ctx.fillStyle=bo.hp<=5?'#FF0000':'#FF6600';
+    ctx.beginPath(); ctx.arc(bo.x+bo.w/2,bo.y+bo.h/2,58,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function _sfDrawPlayer(){
+  const blink=P.invTimer>0&&Math.floor(P.invTimer/5)%2===0;
+  if(blink) return;
+  ctx.save();
+  const fn=charType==='pink'?drawPink:drawWhite;
+  fn(P.x+P.w/2, P.y+P.h, P.facing, P.walkT, false, false, 0);
+  // ３方向ビームのオーラ表示
+  if(sfHasTriple){
+    ctx.globalAlpha=0.5+Math.sin(sfTimer*0.22)*0.4;
+    ctx.strokeStyle='#00BFFF'; ctx.lineWidth=2;
+    ctx.shadowColor='#00BFFF'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(P.x+P.w/2,P.y+P.h/2,20,0,Math.PI*2); ctx.stroke();
+    ctx.shadowBlur=0; ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
+
+function _sfDrawHUD(){
+  ctx.save();
+  ctx.font='bold 14px Arial'; ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.shadowColor='#000'; ctx.shadowBlur=4;
+  // ライフ
+  let ls=''; for(let i=0;i<Math.min(lives,9);i++) ls+='❤️';
+  ctx.fillStyle='#fff'; ctx.fillText(ls,10,10);
+  // スコア
+  ctx.textAlign='right'; ctx.fillText(`SCORE: ${score}`,W-10,10);
+  // 敵カウント or ボスモード
+  ctx.textAlign='center';
+  if(!sfBossAppeared){
+    ctx.fillStyle='#FFD700';
+    ctx.fillText(`倒した数: ${sfKillCount}/12`,W/2,10);
+  } else {
+    ctx.fillStyle='#FF4500';
+    ctx.fillText('⚡ BOSS BATTLE ⚡',W/2,10);
+  }
+  // ３方向ビームタイマー
+  if(sfHasTriple){
+    ctx.fillStyle='#00BFFF'; ctx.shadowColor='#00BFFF'; ctx.shadowBlur=10;
+    ctx.fillText(`✨ ３方向ビーム ${Math.ceil(sfTripleTimer/60)}秒`,W/2,30);
+    ctx.shadowBlur=0;
+  }
+  ctx.restore();
 }
 
 // ════════════════════════════════════════════
@@ -5803,9 +6353,9 @@ function drawStageClear(){
 
   // テキスト
   const ts3=1+Math.sin(stageClearTimer*0.1)*0.04;
-  const clearLabel = currentStage===1?'STAGE 1 CLEAR！':currentStage===2?'STAGE 2 CLEAR！':currentStage===3?'STAGE 3 CLEAR！':'STAGE 4 CLEAR！';
-  const nextLabel  = currentStage===1?'♪ スターシューターへ！ ♪':currentStage===2?'♪ 爆弾迷路へ！ ♪':currentStage===3?'♪ ドンキーコングへ！ ♪':'♪ 音ゲーへ！ ♪';
-  const nextBtn    = currentStage===1?'Space でステージ２へ！':currentStage===2?'Space でステージ３へ！':currentStage===3?'Space でステージ４へ！':'Space でステージ５へ！';
+  const clearLabel = currentStage===1?'STAGE 1 CLEAR！':currentStage===2?'STAGE 2 CLEAR！':currentStage===6?'FOREST CLEAR！':currentStage===3?'STAGE 3 CLEAR！':'STAGE 4 CLEAR！';
+  const nextLabel  = currentStage===1?'♪ スターシューターへ！ ♪':currentStage===2?'♪ 地球帰還！ 森へ突入！ ♪':currentStage===6?'♪ 爆弾迷路へ！ ♪':currentStage===3?'♪ ドンキーコングへ！ ♪':'♪ 音ゲーへ！ ♪';
+  const nextBtn    = currentStage===1?'Space でステージ２へ！':currentStage===2?'Space で森へ！':currentStage===6?'Space でステージ３へ！':currentStage===3?'Space でステージ４へ！':'Space でステージ５へ！';
   ctx.save(); ctx.translate(W/2,72); ctx.scale(ts3,ts3);
   ctx.font='bold 54px Arial'; ctx.textAlign='center';
   ctx.shadowColor='#FFD700'; ctx.shadowBlur=18;
@@ -6405,7 +6955,7 @@ function triggerDance(){
 function triggerWin(){
   if(goalReached) return;
   goalReached=true;
-  if(currentStage===1||currentStage===2||currentStage===3||currentStage===4){
+  if(currentStage===1||currentStage===2||currentStage===3||currentStage===4||currentStage===6){
     state='stage_clear'; stageClearTimer=0;
     stopBGM(); sfxFanfare();
   } else {
@@ -6466,13 +7016,17 @@ function update(){
     }
     // ── ステージ選択サブ画面 ─────────────────────────
     else if(pauseScreen==='stage_select'){
-      if(just['ArrowLeft']||just['KeyA'])  pauseStageIdx=pauseStageIdx>1?pauseStageIdx-1:5;
-      if(just['ArrowRight']||just['KeyD']) pauseStageIdx=pauseStageIdx<5?pauseStageIdx+1:1;
+      // 順序：1→2→6(森)→3→4→5→1
+      const _SF_ORDER=[1,2,6,3,4,5];
+      const _sfi=_SF_ORDER.indexOf(pauseStageIdx);
+      if(just['ArrowLeft']||just['KeyA'])  pauseStageIdx=_SF_ORDER[(_sfi+5)%6];
+      if(just['ArrowRight']||just['KeyD']) pauseStageIdx=_SF_ORDER[(_sfi+1)%6];
       if(just['Digit1']||just['Numpad1']) pauseStageIdx=1;
       if(just['Digit2']||just['Numpad2']) pauseStageIdx=2;
-      if(just['Digit3']||just['Numpad3']) pauseStageIdx=3;
-      if(just['Digit4']||just['Numpad4']) pauseStageIdx=4;
-      if(just['Digit5']||just['Numpad5']) pauseStageIdx=5;
+      if(just['Digit3']||just['Numpad3']) pauseStageIdx=6;  // 森ステージ
+      if(just['Digit4']||just['Numpad4']) pauseStageIdx=3;
+      if(just['Digit5']||just['Numpad5']) pauseStageIdx=4;
+      if(just['Digit6']||just['Numpad6']) pauseStageIdx=5;
       if(just['Space']||just['Enter']){
         paused=false; stopBGM();
         if(currentStage===5) s6StopAllNotes();
@@ -6521,7 +7075,11 @@ function update(){
   if(state==='stage_clear'){
     stageClearTimer++;
     if(stageClearTimer>200||(just['Space']||just['Enter'])){
-      if(currentStage===1) initGame(2); else if(currentStage===2) initGame(3); else if(currentStage===3) initGame(4); else initGame(5);
+      if(currentStage===1) initGame(2);
+      else if(currentStage===2) initGame(6);  // スペース→森
+      else if(currentStage===6) initGame(3);  // 森→爆弾迷路
+      else if(currentStage===3) initGame(4);
+      else initGame(5);
     }
     return;
   }
@@ -6542,6 +7100,7 @@ function update(){
     gameoverTimer++;
     if(gameoverTimer>80&&(just['Space']||just['Enter'])){
       if(currentStage===5){ initStage6(); } // 音ゲーは曲選択に戻る
+      else if(currentStage===6){ initStageForest(); state='play'; } // 森ステージはリスタート
       else { state='select'; selectStep='char'; }
     }
     return;
@@ -6606,6 +7165,7 @@ function update(){
   if(state!=='play') return;
 
   if(currentStage===2){ updateStage3(); return; }
+  if(currentStage===6){ updateStageForest(); return; }
   if(currentStage===3){ updateStage4(); return; }
   if(currentStage===4){ updateStage5(); return; }
   if(currentStage===5){ updateStage6(); return; }
@@ -6890,8 +7450,18 @@ function _drawPauseMenu(){
 }
 
 function _drawPauseStageSelect(){
-  const S4_NAMES=['STAGE 1\nプラットフォーム','STAGE 2\nシューティング','STAGE 3\nボンバー迷路','STAGE 4\nドンキーコング','STAGE 5\n音ゲー'];
-  const pw=320, ph=200;
+  // 順序：1→2→6(森)→3→4→5
+  const SF_ORDER=[1,2,6,3,4,5];
+  const SF_LABELS=['S1\n冒険','S2\n宇宙','森\n森林','S3\n爆弾','S4\nDK','S5\n音ゲー'];
+  const SF_NAMES={
+    1:'STAGE 1 / プラットフォーム',
+    2:'STAGE 2 / スターシューター',
+    6:'FOREST / 森の縦型シューティング',
+    3:'STAGE 3 / ボンバー迷路',
+    4:'STAGE 4 / ドンキーコング',
+    5:'STAGE 5 / 音ゲー'
+  };
+  const pw=360, ph=210;
   const {px,py}=_pausePanel(pw,ph);
 
   ctx.font='bold 20px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -6899,30 +7469,35 @@ function _drawPauseStageSelect(){
   ctx.fillText('🎮 ステージ選択', W/2, py+30);
   ctx.shadowBlur=0;
 
-  // ステージアイコン（横一列）
-  const bw=48, bh=44, gap=8;
-  const totalW=5*(bw+gap)-gap;
+  const bw=46, bh=46, gap=7;
+  const totalW=6*(bw+gap)-gap;
   const bx0=W/2-totalW/2;
-  for(let i=0;i<5;i++){
+  for(let i=0;i<6;i++){
+    const sid=SF_ORDER[i];
     const bx=bx0+i*(bw+gap), by=py+62;
-    const sel=pauseStageIdx===i+1;
+    const sel=pauseStageIdx===sid;
     ctx.save();
     if(sel){ ctx.shadowColor='#FFD700'; ctx.shadowBlur=18; }
-    ctx.fillStyle=sel?'#FFD700':'rgba(255,255,255,0.15)';
-    ctx.strokeStyle=sel?'#FFD700':'rgba(255,255,255,0.4)'; ctx.lineWidth=sel?2.5:1.5;
+    ctx.fillStyle=sel?'#FFD700':(sid===6?'rgba(34,139,34,0.4)':'rgba(255,255,255,0.15)');
+    ctx.strokeStyle=sel?'#FFD700':(sid===6?'#228B22':'rgba(255,255,255,0.4)');
+    ctx.lineWidth=sel?2.5:1.5;
     ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,8); ctx.fill(); ctx.stroke();
     ctx.shadowBlur=0;
-    ctx.font=(sel?'bold 13px':'12px')+' Arial';
+    const lines=SF_LABELS[i].split('\n');
     ctx.fillStyle=sel?'#1a0535':'#fff';
+    ctx.font=(sel?'bold 11px':'10px')+' Arial';
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(`S${i+1}`, bx+bw/2, by+bh/2);
+    ctx.fillText(lines[0], bx+bw/2, by+bh/2-6);
+    ctx.font='9px Arial';
+    ctx.fillStyle=sel?'#1a0535':'rgba(255,255,255,0.7)';
+    ctx.fillText(lines[1], bx+bw/2, by+bh/2+7);
     ctx.restore();
   }
 
-  // 選択中ステージ名
-  const sname=S4_NAMES[pauseStageIdx-1].replace('\n',' / ');
-  ctx.font='16px Arial'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(sname, W/2, py+132);
+  const sname=SF_NAMES[pauseStageIdx]||'';
+  ctx.font='15px Arial'; ctx.fillStyle=pauseStageIdx===6?'#90EE90':'#fff';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(sname, W/2, py+140);
 
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
   ctx.fillText('← → で選択  /  Spaceで移動  /  Escapeで戻る', W/2, py+ph-16);
@@ -6976,6 +7551,15 @@ function draw(){
   if(currentStage===2){
     if(state==='play') drawStage3Scene();
     else { drawStage3BG(); drawFX(); }
+    if(state==='stage_clear') drawStageClear();
+    if(state==='gameover') drawGameoverScreen();
+    if(paused) drawPauseOverlay();
+    return;
+  }
+
+  // ── 森の縦型シューティング
+  if(currentStage===6){
+    drawStageForestScene();
     if(state==='stage_clear') drawStageClear();
     if(state==='gameover') drawGameoverScreen();
     if(paused) drawPauseOverlay();
