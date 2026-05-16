@@ -95,7 +95,7 @@ try {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   masterGain = audioCtx.createGain();
   masterGain.gain.value = masterVolume;
-  masterGain.connect(masterGain||audioCtx.destination);
+  masterGain.connect(audioCtx.destination); // masterGain自身はdestinationへ直結
 } catch(e) {}
 function ensureAudio() {
   if (!audioCtx) {
@@ -103,7 +103,7 @@ function ensureAudio() {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       masterGain = audioCtx.createGain();
       masterGain.gain.value = masterVolume;
-      masterGain.connect(masterGain||audioCtx.destination);
+      masterGain.connect(audioCtx.destination); // masterGain自身はdestinationへ直結
     } catch(e) {}
   }
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
