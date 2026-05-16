@@ -81,13 +81,30 @@ const WALK_SPD = 4.2;
 
 // ── Audio (Web Audio API) ──────────────────
 let audioCtx = null;
+let masterGain = null;   // 全サウンド共通の音量ノード
+let masterVolume = 1.0;  // 0.0〜1.0（環境設定で変更）
+
+function _applyMasterVolume(){
+  if(masterGain) masterGain.gain.value = masterVolume;
+  const a=document.getElementById('bgm'); if(a) a.volume=masterVolume;
+  const a3=document.getElementById('bgm3'); if(a3) a3.volume=masterVolume;
+}
+
 // 起動直後に AudioContext を作成（Mac アプリ/WKWebView では制限なし）
 try {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = masterVolume;
+  masterGain.connect(masterGain||audioCtx.destination);
 } catch(e) {}
 function ensureAudio() {
   if (!audioCtx) {
-    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = masterVolume;
+      masterGain.connect(masterGain||audioCtx.destination);
+    } catch(e) {}
   }
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 }
@@ -95,7 +112,7 @@ function beep(freq, dur, vol=0.18, type='sine', delay=0) {
   if (!audioCtx) return;
   const o = audioCtx.createOscillator();
   const g = audioCtx.createGain();
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(masterGain||audioCtx.destination);
   o.type = type; o.frequency.value = freq;
   const t = audioCtx.currentTime + delay;
   g.gain.setValueAtTime(vol, t);
@@ -126,7 +143,7 @@ function melodyNote(freq, dur=0.72, vol=0.16, delay=0){
   const t = audioCtx.currentTime + delay;
   function mko(type, f, v, att, rel){
     const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
+    o.connect(g); g.connect(masterGain||audioCtx.destination);
     o.type=type; o.frequency.value=f;
     const sus=Math.max(att, dur-rel);
     g.gain.setValueAtTime(0.001, t);
@@ -140,7 +157,7 @@ function melodyNote(freq, dur=0.72, vol=0.16, delay=0){
   mko('sine',     freq*0.5, vol*0.14,  0.015, 0.22); // サブ（温かみ）
   // 残響エコー
   const oe=audioCtx.createOscillator(), ge=audioCtx.createGain();
-  oe.connect(ge); ge.connect(audioCtx.destination);
+  oe.connect(ge); ge.connect(masterGain||audioCtx.destination);
   oe.type='sine'; oe.frequency.value=freq;
   ge.gain.setValueAtTime(0.001, t+0.20);
   ge.gain.linearRampToValueAtTime(vol*0.09, t+0.26);
@@ -154,7 +171,7 @@ function chordPad(freqs, dur=2.8, vol=0.038, delay=0){
   const t=audioCtx.currentTime+delay;
   freqs.forEach(f=>{
     const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
+    o.connect(g); g.connect(masterGain||audioCtx.destination);
     o.type='sine'; o.frequency.value=f;
     g.gain.setValueAtTime(0.001, t);
     g.gain.linearRampToValueAtTime(vol,   t+0.45);
@@ -171,7 +188,7 @@ function sfxWin6(){
   const bassDur=9.0;
   [[130.81,0],[174.61,2.2],[196.00,4.4],[130.81,6.6]].forEach(([f,d])=>{
     const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
+    o.connect(g); g.connect(masterGain||audioCtx.destination);
     o.type='triangle'; o.frequency.value=f;
     const t=audioCtx.currentTime+d;
     g.gain.setValueAtTime(0.001,t);
@@ -204,7 +221,7 @@ function sfxKick(){
   if(!audioCtx) return;
   const t=audioCtx.currentTime;
   const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(masterGain||audioCtx.destination);
   o.type='sine';
   o.frequency.setValueAtTime(160,t);
   o.frequency.exponentialRampToValueAtTime(42,t+0.18);
@@ -213,7 +230,7 @@ function sfxKick(){
   o.start(t); o.stop(t+0.37);
   // クリックトランジェント
   const o2=audioCtx.createOscillator(), g2=audioCtx.createGain();
-  o2.connect(g2); g2.connect(audioCtx.destination);
+  o2.connect(g2); g2.connect(masterGain||audioCtx.destination);
   o2.type='square'; o2.frequency.value=80;
   g2.gain.setValueAtTime(0.10,t); g2.gain.exponentialRampToValueAtTime(0.001,t+0.04);
   o2.start(t); o2.stop(t+0.05);
@@ -229,11 +246,11 @@ function sfxSnare(){
   for(let i=0;i<sz;i++) d[i]=(Math.random()*2-1);
   const src=audioCtx.createBufferSource(); src.buffer=buf;
   const g=audioCtx.createGain();
-  src.connect(g); g.connect(audioCtx.destination);
+  src.connect(g); g.connect(masterGain||audioCtx.destination);
   g.gain.setValueAtTime(0.22,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.20);
   src.start(t); src.stop(t+0.22);
   const o=audioCtx.createOscillator(), g2=audioCtx.createGain();
-  o.connect(g2); g2.connect(audioCtx.destination);
+  o.connect(g2); g2.connect(masterGain||audioCtx.destination);
   o.type='triangle'; o.frequency.value=220;
   g2.gain.setValueAtTime(0.09,t); g2.gain.exponentialRampToValueAtTime(0.001,t+0.10);
   o.start(t); o.stop(t+0.11);
@@ -251,7 +268,7 @@ function sfxHihat(){
   const flt=audioCtx.createBiquadFilter();
   flt.type='highpass'; flt.frequency.value=7000;
   const g=audioCtx.createGain();
-  src.connect(flt); flt.connect(g); g.connect(audioCtx.destination);
+  src.connect(flt); flt.connect(g); g.connect(masterGain||audioCtx.destination);
   g.gain.setValueAtTime(0.07,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.055);
   src.start(t); src.stop(t+0.06);
 }
@@ -261,7 +278,7 @@ function sfxBass(freq, dur=1.0){
   if(!audioCtx) return;
   const t=audioCtx.currentTime;
   const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(masterGain||audioCtx.destination);
   o.type='triangle'; o.frequency.value=freq;
   g.gain.setValueAtTime(0.001,t);
   g.gain.linearRampToValueAtTime(0.24,t+0.025);
@@ -270,7 +287,7 @@ function sfxBass(freq, dur=1.0){
   o.start(t); o.stop(t+dur+0.05);
   // サブ低音
   const o2=audioCtx.createOscillator(), g2=audioCtx.createGain();
-  o2.connect(g2); g2.connect(audioCtx.destination);
+  o2.connect(g2); g2.connect(masterGain||audioCtx.destination);
   o2.type='sine'; o2.frequency.value=freq*0.5;
   g2.gain.setValueAtTime(0.001,t);
   g2.gain.linearRampToValueAtTime(0.16,t+0.03);
@@ -405,7 +422,7 @@ function _titleBGMLoop() {
 
   const schedNote = (freq, st, dur, vol, type='sine') => {
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
+    o.connect(g); g.connect(masterGain||audioCtx.destination);
     o.type = type; o.frequency.value = freq;
     g.gain.setValueAtTime(0, t + st);
     g.gain.linearRampToValueAtTime(vol, t + st + .012);
@@ -763,8 +780,10 @@ canvas.addEventListener('touchcancel', e=>{
 
 // ── State ─────────────────────────────────
 let state = 'select';  // select | play | dance_flash | win | gameover
-let paused = false;         // ポーズ中フラグ
-let pauseMenuIdx = 0;       // 0=再開 1=やめる
+let paused = false;            // ポーズ中フラグ
+let pauseMenuIdx = 0;          // 0=再開 1=ステージ選択 2=環境設定 3=やめる
+let pauseScreen = 'menu';      // 'menu' | 'stage_select' | 'settings'
+let pauseStageIdx = 1;         // ステージ選択画面での選択中ステージ
 let charType = 'pink';      // pink | white
 let startStage = 1;         // 1〜5
 let selectStep = 'char';    // 'char' | 'stage'
@@ -3870,7 +3889,7 @@ function s6StartNote(lane, freqOverride){
   const t=audioCtx.currentTime;
   const mk=(type,f,vol,att)=>{
     const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
+    o.connect(g); g.connect(masterGain||audioCtx.destination);
     o.type=type; o.frequency.value=f;
     g.gain.setValueAtTime(0.001,t);
     g.gain.linearRampToValueAtTime(vol, t+att);
@@ -6414,31 +6433,57 @@ function update(){
   // ── ポーズ制御（セレクトボタン / Escape） ──────────────
   const _pauseable = (state==='play'||state==='dance_flash'||state==='song_select'||state==='song_clear');
   if(just['Escape'] && _pauseable){
-    paused = !paused;
-    if(paused){
-      pauseMenuIdx = 0;
-      // 再生中のBGMだけ一時停止
+    if(!paused){
+      paused=true; pauseMenuIdx=0; pauseScreen='menu'; pauseStageIdx=currentStage;
       if(bgmStage===3){ const _a3=document.getElementById('bgm3'); if(_a3) _a3.pause(); }
       else             { const _a=getBGM(); if(_a) _a.pause(); }
+    } else if(pauseScreen!=='menu'){
+      pauseScreen='menu'; // サブ画面からメインメニューへ戻る
     } else {
-      _resumeBGM();
+      paused=false; _resumeBGM(); // メインメニューでEsc→再開
     }
   }
+
   if(paused){
-    if(just['ArrowUp']||just['KeyW'])   pauseMenuIdx=(pauseMenuIdx+1)%2;
-    if(just['ArrowDown']||just['KeyS']) pauseMenuIdx=(pauseMenuIdx+1)%2;
-    if(just['Space']||just['Enter']){
-      if(pauseMenuIdx===0){
-        // 再開
-        paused=false;
-        _resumeBGM();
-      } else {
-        // やめる → タイトルへ
-        paused=false;
-        stopBGM();
-        if(currentStage===5) s6StopAllNotes();
-        state='select'; selectStep='char';
+    // ── メインポーズメニュー ─────────────────────────
+    if(pauseScreen==='menu'){
+      const N=4;
+      if(just['ArrowUp']||just['KeyW'])   pauseMenuIdx=(pauseMenuIdx+N-1)%N;
+      if(just['ArrowDown']||just['KeyS']) pauseMenuIdx=(pauseMenuIdx+1)%N;
+      if(just['Space']||just['Enter']){
+        if(pauseMenuIdx===0){                    // 再開
+          paused=false; _resumeBGM();
+        } else if(pauseMenuIdx===1){             // ステージ選択
+          pauseScreen='stage_select'; pauseStageIdx=currentStage;
+        } else if(pauseMenuIdx===2){             // 環境設定
+          pauseScreen='settings';
+        } else {                                 // やめる
+          paused=false; stopBGM();
+          if(currentStage===5) s6StopAllNotes();
+          state='select'; selectStep='char';
+        }
       }
+    }
+    // ── ステージ選択サブ画面 ─────────────────────────
+    else if(pauseScreen==='stage_select'){
+      if(just['ArrowLeft']||just['KeyA'])  pauseStageIdx=pauseStageIdx>1?pauseStageIdx-1:5;
+      if(just['ArrowRight']||just['KeyD']) pauseStageIdx=pauseStageIdx<5?pauseStageIdx+1:1;
+      if(just['Digit1']||just['Numpad1']) pauseStageIdx=1;
+      if(just['Digit2']||just['Numpad2']) pauseStageIdx=2;
+      if(just['Digit3']||just['Numpad3']) pauseStageIdx=3;
+      if(just['Digit4']||just['Numpad4']) pauseStageIdx=4;
+      if(just['Digit5']||just['Numpad5']) pauseStageIdx=5;
+      if(just['Space']||just['Enter']){
+        paused=false; stopBGM();
+        if(currentStage===5) s6StopAllNotes();
+        initGame(pauseStageIdx);
+      }
+    }
+    // ── 環境設定サブ画面 ─────────────────────────────
+    else if(pauseScreen==='settings'){
+      const step=0.1;
+      if(just['ArrowLeft']||just['KeyA'])  { masterVolume=Math.max(0,+(masterVolume-step).toFixed(1)); _applyMasterVolume(); }
+      if(just['ArrowRight']||just['KeyD']) { masterVolume=Math.min(1,+(masterVolume+step).toFixed(1)); _applyMasterVolume(); }
     }
     return;
   }
@@ -6785,13 +6830,19 @@ function update(){
 // ── ポーズオーバーレイ（全ステージ共通）──────────────
 function drawPauseOverlay(){
   ctx.save();
-  ctx.globalAlpha=0.62;
+  ctx.globalAlpha=0.65;
   ctx.fillStyle='#000';
   ctx.fillRect(0,0,W,H);
   ctx.globalAlpha=1;
 
-  // パネル
-  const pw=260, ph=180;
+  if(pauseScreen==='menu')         _drawPauseMenu();
+  else if(pauseScreen==='stage_select') _drawPauseStageSelect();
+  else if(pauseScreen==='settings')    _drawPauseSettings();
+
+  ctx.restore();
+}
+
+function _pausePanel(pw,ph){
   const px=W/2-pw/2, py=H/2-ph/2;
   ctx.save();
   ctx.shadowColor='#FF69B4'; ctx.shadowBlur=32;
@@ -6799,39 +6850,117 @@ function drawPauseOverlay(){
   ctx.strokeStyle='#FF69B4'; ctx.lineWidth=3;
   ctx.beginPath(); ctx.roundRect(px,py,pw,ph,14); ctx.fill(); ctx.stroke();
   ctx.restore();
+  return {px,py};
+}
 
-  // タイトル
+function _drawPauseMenu(){
+  const pw=280, ph=260;
+  const {px,py}=_pausePanel(pw,ph);
+
   ctx.font='bold 22px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle='#FFD700';
-  ctx.shadowColor='#FFD700'; ctx.shadowBlur=10;
-  ctx.fillText('⏸ 一時停止', W/2, py+36);
+  ctx.fillStyle='#FFD700'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=10;
+  ctx.fillText('⏸ 一時停止', W/2, py+34);
   ctx.shadowBlur=0;
 
-  // メニュー項目
-  const menuItems=['▶  再開','✕  やめる'];
-  const itemColors=['#FFFFFF','#FF6B6B'];
-  for(let i=0;i<2;i++){
-    const iy=py+85+i*52;
+  const menuItems=[
+    {label:'▶  再開',       col:'#FFFFFF'},
+    {label:'🎮  ステージ選択', col:'#87CEEB'},
+    {label:'⚙  環境設定',   col:'#98FB98'},
+    {label:'✕  やめる',     col:'#FF6B6B'},
+  ];
+  for(let i=0;i<menuItems.length;i++){
+    const iy=py+82+i*46;
     if(pauseMenuIdx===i){
       ctx.fillStyle='rgba(255,105,180,0.28)';
-      ctx.beginPath(); ctx.roundRect(px+14,iy-20,pw-28,40,8); ctx.fill();
-      ctx.fillStyle=itemColors[i];
-      ctx.shadowColor=itemColors[i]; ctx.shadowBlur=8;
+      ctx.beginPath(); ctx.roundRect(px+14,iy-19,pw-28,38,8); ctx.fill();
+      ctx.fillStyle=menuItems[i].col;
+      ctx.shadowColor=menuItems[i].col; ctx.shadowBlur=8;
     } else {
-      ctx.fillStyle='rgba(255,255,255,0.55)';
-      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(255,255,255,0.50)'; ctx.shadowBlur=0;
     }
-    ctx.font=(pauseMenuIdx===i?'bold 20px':'18px')+' Arial';
+    ctx.font=(pauseMenuIdx===i?'bold 19px':'17px')+' Arial';
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(menuItems[i], W/2, iy);
+    ctx.fillText(menuItems[i].label, W/2, iy);
     ctx.shadowBlur=0;
   }
 
-  // 操作ヒント
-  ctx.font='12px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
+  ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('↑↓で選択  /  Spaceで決定  /  Escapeで再開', W/2, py+ph-18);
-  ctx.restore();
+  ctx.fillText('↑↓で選択  /  Spaceで決定  /  Escapeで再開', W/2, py+ph-16);
+}
+
+function _drawPauseStageSelect(){
+  const S4_NAMES=['STAGE 1\nプラットフォーム','STAGE 2\nシューティング','STAGE 3\nボンバー迷路','STAGE 4\nドンキーコング','STAGE 5\n音ゲー'];
+  const pw=320, ph=200;
+  const {px,py}=_pausePanel(pw,ph);
+
+  ctx.font='bold 20px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#FFD700'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=10;
+  ctx.fillText('🎮 ステージ選択', W/2, py+30);
+  ctx.shadowBlur=0;
+
+  // ステージアイコン（横一列）
+  const bw=48, bh=44, gap=8;
+  const totalW=5*(bw+gap)-gap;
+  const bx0=W/2-totalW/2;
+  for(let i=0;i<5;i++){
+    const bx=bx0+i*(bw+gap), by=py+62;
+    const sel=pauseStageIdx===i+1;
+    ctx.save();
+    if(sel){ ctx.shadowColor='#FFD700'; ctx.shadowBlur=18; }
+    ctx.fillStyle=sel?'#FFD700':'rgba(255,255,255,0.15)';
+    ctx.strokeStyle=sel?'#FFD700':'rgba(255,255,255,0.4)'; ctx.lineWidth=sel?2.5:1.5;
+    ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,8); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.font=(sel?'bold 13px':'12px')+' Arial';
+    ctx.fillStyle=sel?'#1a0535':'#fff';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(`S${i+1}`, bx+bw/2, by+bh/2);
+    ctx.restore();
+  }
+
+  // 選択中ステージ名
+  const sname=S4_NAMES[pauseStageIdx-1].replace('\n',' / ');
+  ctx.font='16px Arial'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(sname, W/2, py+132);
+
+  ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
+  ctx.fillText('← → で選択  /  Spaceで移動  /  Escapeで戻る', W/2, py+ph-16);
+}
+
+function _drawPauseSettings(){
+  const pw=300, ph=180;
+  const {px,py}=_pausePanel(pw,ph);
+
+  ctx.font='bold 20px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='#FFD700'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=10;
+  ctx.fillText('⚙ 環境設定', W/2, py+30);
+  ctx.shadowBlur=0;
+
+  // ボリュームラベル
+  ctx.font='bold 16px Arial'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText('🔊 ボリューム', px+28, py+78);
+
+  // ボリュームバー
+  const bx=px+28, by=py+102, bw=pw-56, bh=18;
+  ctx.fillStyle='rgba(255,255,255,0.15)';
+  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,9); ctx.fill();
+  // 塗りつぶし部分
+  const fillW=Math.round(bw*masterVolume);
+  if(fillW>0){
+    ctx.fillStyle='#FF69B4';
+    ctx.beginPath(); ctx.roundRect(bx,by,fillW,bh,9); ctx.fill();
+  }
+  // 枠線
+  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,9); ctx.stroke();
+  // パーセント
+  ctx.font='bold 14px Arial'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(`${Math.round(masterVolume*100)}%`, W/2, by+bh/2);
+
+  ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('← → で音量調整  /  Escapeで戻る', W/2, py+ph-16);
 }
 
 // ════════════════════════════════════════════
