@@ -2031,6 +2031,7 @@ let sfTrees=[], sfPits=[], sfEBullets=[];
 let sfBoss=null, sfBossAppeared=false, sfKillCount=0;
 let sfHasTriple=false, sfTripleTimer=0, sfFireCD=0;
 let sfESpawnCD=0, sfTSpawnCD=0, sfBSpawnCD=0, sfPSpawnCD=0;
+let sfCapture=false, sfCaptureT=0; // 捕獲アニメ
 
 function initStageForest(){
   sfTimer=0; sfScrollY=0;
@@ -2038,6 +2039,7 @@ function initStageForest(){
   sfTrees=[]; sfPits=[]; sfEBullets=[];
   sfBoss=null; sfBossAppeared=false; sfKillCount=0;
   sfHasTriple=false; sfTripleTimer=0; sfFireCD=0;
+  sfCapture=false; sfCaptureT=0;
   sfESpawnCD=80; sfTSpawnCD=70; sfBSpawnCD=110; sfPSpawnCD=320;
   P.x=W/2-15; P.y=400; P.w=30; P.h=30;
   P.vx=0; P.vy=0; P.facing=1; P.invTimer=0; P.walkT=0; P.dancing=false;
@@ -2056,6 +2058,28 @@ function sfHitPlayer(){
 
 function updateStageForest(){
   if(state!=='play') return;
+
+  // ── 捕獲アニメ中 ─────────────────────────────────
+  if(sfCapture){
+    sfCaptureT++;
+    // フェーズ0(0-70): パディントンがプレイヤーへ近づく
+    if(sfCaptureT<=70){
+      sfBoss.x+=(P.x+P.w/2-sfBoss.w/2-sfBoss.x)*0.06;
+      sfBoss.y+=(P.y-80-sfBoss.y)*0.07;
+    }
+    // フェーズ1(70-160): プレイヤーがパディントンに引き寄せられ右へ移動
+    else if(sfCaptureT<=160){
+      sfBoss.x+=(W+60-sfBoss.x)*0.04;
+      sfBoss.y=P.y-75;
+      P.x+=(sfBoss.x+sfBoss.w/2-P.x-P.w/2)*0.18;
+      P.y+=(sfBoss.y+sfBoss.h-10-P.y)*0.15;
+    }
+    // フェーズ2(160-240): フェードアウト
+    // フェーズ3(240): ステージクリア
+    if(sfCaptureT>=240) triggerWin();
+    updateFX(); return;
+  }
+
   sfTimer++; sfScrollY+=1.6;
   if(sfFireCD>0) sfFireCD--;
   if(sfTripleTimer>0){ sfTripleTimer--; if(sfTripleTimer===0){ sfHasTriple=false; spawnText(P.x+P.w/2,P.y-20,'ビーム終了','#aaa'); } }
@@ -2193,9 +2217,12 @@ function updateStageForest(){
         beep(280,0.08,0.07,'sawtooth');
         if(bo.hp<=0){
           spawnParticles(bo.x+bo.w/2,bo.y+bo.h/2,'#FFD700',22,'star');
-          spawnText(W/2,H/2,'パディントン撃破！ +1000','#FFD700');
-          score+=1000; sfxFanfare();
-          triggerWin();
+          spawnText(W/2,H/2-40,'パディントン撃破！ +1000','#FFD700');
+          score+=1000;
+          beep(400,0.1,0.12,'sine'); beep(500,0.1,0.12,'sine',0.1);
+          // 捕獲アニメ開始（すぐにtriggerWin()は呼ばない）
+          sfCapture=true; sfCaptureT=0;
+          bo.vx=0; // 移動停止
         }
       }
     }
@@ -2375,6 +2402,9 @@ function drawStageForestScene(){
   drawFX();
   _sfDrawHUD();
   drawTouchControlsS3(); // 射撃ボタンを流用
+
+  // 捕獲アニメオーバーレイ
+  if(sfCapture) _sfDrawCapture();
 }
 
 function _sfDrawBG(){
@@ -2533,51 +2563,165 @@ function _sfDrawBoss(){
   }
 }
 
+// ── 捕獲アニメ描画 ───────────────────────────────────────────
+function _sfDrawCapture(){
+  const t=sfCaptureT;
+  const bo=sfBoss;
+  if(!bo) return;
+
+  // フェーズ0 (0-70): ！？吹き出し
+  if(t<=70){
+    // 吹き出し背景
+    const bx=bo.x+bo.w/2, by=bo.y-30;
+    ctx.save();
+    ctx.fillStyle='rgba(255,255,255,0.92)';
+    ctx.strokeStyle='#333'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.roundRect(bx-28,by-28,56,30,8);
+    ctx.fill(); ctx.stroke();
+    // 吹き出しのしっぽ
+    ctx.beginPath();
+    ctx.moveTo(bx-8,by+2); ctx.lineTo(bx,by+14); ctx.lineTo(bx+8,by+2);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // ！？テキスト
+    ctx.font='bold 20px Arial'; ctx.fillStyle='#C00';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('！？',bx,by-13);
+    ctx.restore();
+  }
+
+  // フェーズ1 (70-160): 腕ラインでプレイヤーを引き寄せ＋洞窟出現
+  if(t>70 && t<=160){
+    const prog=(t-70)/90; // 0→1
+
+    // 腕ライン（パディントン → プレイヤー）
+    const armX1=bo.x+bo.w/2+20;
+    const armY1=bo.y+bo.h*0.5;
+    const armX2=P.x+P.w/2;
+    const armY2=P.y+P.h/2;
+    ctx.save();
+    ctx.strokeStyle='#A0723A'; ctx.lineWidth=7; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(armX1,armY1); ctx.lineTo(armX2,armY2); ctx.stroke();
+    // 手（丸）
+    ctx.fillStyle='#C8966A';
+    ctx.beginPath(); ctx.arc(armX2,armY2,10,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#8B5E28'; ctx.lineWidth=2; ctx.stroke();
+    ctx.restore();
+
+    // 洞窟入り口（右端に出現、progに合わせてフェードイン）
+    const caveAlpha=Math.min(1,prog*2);
+    const caveX=W-60;
+    const caveY=H/2-30;
+    ctx.save();
+    ctx.globalAlpha=caveAlpha;
+    // 洞窟外壁
+    ctx.fillStyle='#3A2A1A';
+    ctx.beginPath(); ctx.ellipse(caveX,caveY,55,75,0,0,Math.PI*2); ctx.fill();
+    // 洞窟の穴（暗い楕円）
+    const grad=ctx.createRadialGradient(caveX,caveY,10,caveX,caveY,45);
+    grad.addColorStop(0,'#050302'); grad.addColorStop(0.6,'#0E0804'); grad.addColorStop(1,'#2A1A0A');
+    ctx.fillStyle=grad;
+    ctx.beginPath(); ctx.ellipse(caveX,caveY,42,60,0,0,Math.PI*2); ctx.fill();
+    // 「洞窟」テキスト
+    ctx.font='bold 13px Arial'; ctx.fillStyle='#DDD';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('洞窟',caveX,caveY+68);
+    ctx.restore();
+  }
+
+  // フェーズ2 (160-240): フェードアウト＋テキスト
+  if(t>160){
+    const fadeT=(t-160)/80;
+    const alpha=Math.min(1,fadeT*1.2);
+
+    // 洞窟も継続表示
+    const caveX=W-60; const caveY=H/2-30;
+    ctx.save();
+    ctx.fillStyle='#3A2A1A';
+    ctx.beginPath(); ctx.ellipse(caveX,caveY,55,75,0,0,Math.PI*2); ctx.fill();
+    const grad2=ctx.createRadialGradient(caveX,caveY,10,caveX,caveY,45);
+    grad2.addColorStop(0,'#050302'); grad2.addColorStop(0.6,'#0E0804'); grad2.addColorStop(1,'#2A1A0A');
+    ctx.fillStyle=grad2;
+    ctx.beginPath(); ctx.ellipse(caveX,caveY,42,60,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // 暗転
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+
+    // テキスト（暗転後に浮かび上がる）
+    if(alpha>0.5){
+      const textAlpha=Math.min(1,(alpha-0.5)*3);
+      ctx.save();
+      ctx.globalAlpha=textAlpha;
+      ctx.font='bold 28px Arial';
+      ctx.fillStyle='#FF4444';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('パディントンに連れ去られた！',W/2,H/2-20);
+      ctx.font='22px Arial';
+      ctx.fillStyle='#AAA';
+      ctx.fillText('洞窟の中へ...',W/2,H/2+20);
+      ctx.restore();
+    }
+  }
+}
+
 function _sfDrawPlayer(){
   const blink=P.invTimer>0&&Math.floor(P.invTimer/5)%2===0;
   if(blink) return;
   ctx.save();
   const cx=P.x+P.w/2;
-  // ハリネズミの走りのボブ
-  const bob=Math.sin(P.walkT*2.2)*3;
-  const hcy=P.y+P.h-6+bob; // ハリネズミ中心Y
+  const bob=Math.sin(P.walkT*2.2)*1.2; // ボブ幅は控えめ（3倍スケール後に3倍になる）
+  const hcy=P.y+P.h+18; // ハリネズミ中心Y（プレイヤー矩形の少し下）
+  const faceDir=P.facing;
 
-  // ── 乗り物ハリネズミ ──────────────────────────────
+  // ── 乗り物ハリネズミ（3倍スケール） ─────────────────
+  ctx.save();
+  ctx.translate(cx, hcy+bob*3);
+  ctx.scale(faceDir*3, 3); // 左右反転もここで処理
   // 体
   ctx.fillStyle='#7B4F2F';
-  ctx.beginPath(); ctx.ellipse(cx,hcy,20,13,0,0,Math.PI*2); ctx.fill();
-  // トゲ（背中側）
-  ctx.strokeStyle='#4A2C0E'; ctx.lineWidth=2.2;
-  for(let i=0;i<10;i++){
-    const a=(i/10)*Math.PI; // 上半分のみ
-    const bx=cx+Math.cos(a)*19, by=hcy-Math.sin(a)*12;
-    const ex=cx+Math.cos(a)*27, ey=hcy-Math.sin(a)*19;
-    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(ex,ey); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0,0,20,13,0,0,Math.PI*2); ctx.fill();
+  // 腹（明るめ）
+  ctx.fillStyle='#A0733A';
+  ctx.beginPath(); ctx.ellipse(0,4,12,7,0,0,Math.PI*2); ctx.fill();
+  // トゲ（背中・上半分）
+  ctx.strokeStyle='#3A1E08'; ctx.lineWidth=0.9;
+  for(let i=0;i<12;i++){
+    const a=(i/12)*Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a)*18,-Math.sin(a)*12);
+    ctx.lineTo(Math.cos(a)*27,-Math.sin(a)*20);
+    ctx.stroke();
   }
-  // 顔（向いている方向）
-  const faceDir=P.facing;
+  // 顔（常に右向き、scaleで反転済み）
   ctx.fillStyle='#F5CBA7';
-  ctx.beginPath(); ctx.ellipse(cx+faceDir*13,hcy+1,8,6,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(14,1,8,6,0,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#111';
-  ctx.beginPath(); ctx.arc(cx+faceDir*17,hcy,2.2,0,Math.PI*2); ctx.fill();
-  // 小さな鼻
+  ctx.beginPath(); ctx.arc(18,0,2.2,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#FF9999';
-  ctx.beginPath(); ctx.arc(cx+faceDir*20,hcy+2,1.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(21,2,1.5,0,Math.PI*2); ctx.fill();
+  // 目のハイライト
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(17,-1,0.9,0,Math.PI*2); ctx.fill();
   // 足（走りアニメ）
   ctx.fillStyle='#5C3A1E';
-  const legL=Math.sin(P.walkT*2)*5;
-  [-8,0,8].forEach((ox,i)=>{
-    const ly=hcy+12+Math.sin(P.walkT*2+i*1.1)*4;
-    ctx.beginPath(); ctx.ellipse(cx+ox,ly,4,3,0,0,Math.PI*2); ctx.fill();
+  [-7,0,7].forEach((ox,i)=>{
+    const ly=12+Math.sin(P.walkT*2.2+i*1.1)*3.5;
+    ctx.beginPath(); ctx.ellipse(ox,ly,4,3,0,0,Math.PI*2); ctx.fill();
   });
+  ctx.restore(); // scaleを戻す
 
   // ── バニーライダー ────────────────────────────────
-  const riderCY = hcy-17+bob; // ハリネズミの背に乗っている
+  // ハリネズミの背（hcy - 39 = 体の上端、3倍なので13*3=39）に乗る
+  const riderY = hcy + bob*3 - 39;
   ctx.save();
-  ctx.translate(cx, riderCY);
-  ctx.scale(0.88, 0.88);
+  ctx.translate(cx, riderY);
   const fn=charType==='pink'?drawPink:drawWhite;
-  fn(0, 0, P.facing, P.walkT, false, false, 0);
+  fn(0, 0, faceDir, P.walkT, false, false, 0);
   ctx.restore();
 
   // ３方向ビームのオーラ
@@ -2585,7 +2729,7 @@ function _sfDrawPlayer(){
     ctx.globalAlpha=0.45+Math.sin(sfTimer*0.22)*0.35;
     ctx.strokeStyle='#00BFFF'; ctx.lineWidth=2;
     ctx.shadowColor='#00BFFF'; ctx.shadowBlur=14;
-    ctx.beginPath(); ctx.ellipse(cx,P.y+P.h/2,26,22,0,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx,P.y+P.h/2,38,30,0,0,Math.PI*2); ctx.stroke();
     ctx.shadowBlur=0; ctx.globalAlpha=1;
   }
   ctx.restore();
