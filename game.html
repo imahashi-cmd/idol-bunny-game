@@ -925,9 +925,6 @@ function initGame(stage=1) {
   // ダンスホール入り口（旧ゴールフラグ位置）
   items.push({k:'hallgate',x:5590,y:GROUND_TOP-220,w:180,h:220,on:true});
 
-  // 隠し扉（衣装部屋へのワープ）- スタート地点近く
-  items.push({k:'door',x:42,y:GROUND_TOP-88,w:44,h:88,on:true});
-
   // Enemies
   [
     {x:360,y:398,min:200,max:470},{x:710,y:398,min:540,max:890},
@@ -3608,8 +3605,8 @@ function initStage5(){
   s5PadFloor=4; s5PadX=620; s5PadMoveDir=-1;
   platforms=[]; enemies=[]; items=[]; bgTrees=[];
   particles=[]; floatTxts=[];
-  // Microphone at top-right
-  items=[{k:'mic',x:706,y:54,w:28,h:38,on:true}];
+  // 着替え部屋の扉（グラウンドフロア左端）
+  items=[{k:'door',x:20,y:S5_FL[0].y-88,w:44,h:88,on:true}];
   // Player starts bottom-left on floor 0
   P.w=28; P.h=40;
   P.x=80; P.y=S5_FL[0].y-P.h;
@@ -3940,16 +3937,16 @@ function updateStage5(){
 
   if(Math.abs(P.vx)>0.5&&P.onGround) P.walkT+=0.1;
 
-  // Microphone pickup → win
-  const mic=items.find(it=>it.k==='mic'&&it.on);
-  if(mic&&P.x<mic.x+mic.w&&P.x+P.w>mic.x&&P.y<mic.y+mic.h&&P.y+P.h>mic.y){
-    mic.on=false; score+=2000;
-    sfxFanfare();
-    spawnParticles(mic.x+mic.w/2,mic.y,'#FFD700',30,'star');
-    spawnText(mic.x+mic.w/2,mic.y-24,'🎤 GOAL！ +2000','#FFD700');
-    s5WinCD5=160;
-  }
-  if(s5WinCD5>0){ s5WinCD5--; if(s5WinCD5===0) triggerWin(); }
+  // 着替え部屋の扉
+  items.forEach(it=>{
+    if(it.k!=='door') return;
+    if(P.x<it.x+it.w&&P.x+P.w>it.x&&P.y<it.y+it.h&&P.y+P.h>it.y){
+      if(just['ArrowUp']||just['KeyW']){
+        costumeSelectIdx=costumeType;
+        state='costume_room';
+      }
+    }
+  });
 
   updateFX();
 }
@@ -4587,9 +4584,46 @@ function drawS5HUD(){
   ctx.restore();
 }
 
+function drawS5Door(it){
+  const sx=it.x;
+  const glow=0.6+Math.sin(s5GameT5*0.09)*0.4;
+  ctx.save();
+  // 扉枠（木材色）
+  ctx.fillStyle='#5C3A10';
+  ctx.fillRect(sx,it.y,it.w,it.h);
+  // 扉パネル（グラデ）
+  const dg=ctx.createLinearGradient(sx+4,it.y+4,sx+it.w-4,it.y+it.h-4);
+  dg.addColorStop(0,'#9B59B6'); dg.addColorStop(1,'#FF69B4');
+  ctx.fillStyle=dg;
+  ctx.fillRect(sx+4,it.y+4,it.w-8,it.h-8);
+  // 輝きオーバーレイ
+  ctx.globalAlpha=glow*0.4;
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(sx+4,it.y+4,it.w-8,it.h-8);
+  ctx.globalAlpha=1;
+  // ノブ
+  ctx.fillStyle='#FFD700';
+  ctx.shadowColor='#FFD700'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.arc(sx+it.w-10,it.y+it.h/2,4,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+  // アイコン・ラベル
+  ctx.fillStyle='#fff'; ctx.font='bold 14px Arial'; ctx.textAlign='center';
+  ctx.shadowColor='#9B59B6'; ctx.shadowBlur=6;
+  ctx.fillText('👗',sx+it.w/2,it.y+it.h/2-4);
+  ctx.font='8px Arial';
+  ctx.fillText('着替え',sx+it.w/2,it.y+it.h/2+12);
+  ctx.shadowBlur=0;
+  // 近づいたらヒント表示
+  if(Math.abs((P.x+P.w/2)-(sx+it.w/2))<80){
+    ctx.fillStyle='#FFD700'; ctx.font='bold 11px Arial';
+    ctx.fillText('↑ で入る',sx+it.w/2,it.y-10);
+  }
+  ctx.restore();
+}
+
 function drawStage5Scene(){
   drawStage5BG();
-  items.forEach(it=>{ if(it.k==='mic') drawS5Mic(it); });
+  items.forEach(it=>{ if(it.k==='door') drawS5Door(it); });
   drawS5Paddington();
   s5Barrels.forEach(b=>{ if(b.on) drawS5Barrel(b); });
   // 魔法の星を描画
