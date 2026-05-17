@@ -1137,7 +1137,7 @@ let s4Grid=[], s4Bombs=[], s4Explosions=[];
 let s4Enemies4=[], s4GameT4=0;
 let s4ExitOpen=false, s4WinCD4=-1, s4BombCD=0;
 let s4BombRange=3, s4PowerItems=[], s4PowerTimer=0;
-let s4SpeedUpDropped=false, s4LifeUpDropped=false, s4SpeedActive=false;
+let s4SpeedUpDropped=false, s4LifeUpDropped=false, s4TimeUpDropped=false, s4SpeedActive=false;
 let s4DropItems=[];
 
 function initStage3(){
@@ -2856,7 +2856,7 @@ function initStage4(){
   s4Enemies4=[]; s4GameT4=0;
   s4ExitOpen=false; s4WinCD4=-1; s4BombCD=0;
   s4BombRange=S4_BRANGE; s4PowerItems=[]; s4PowerTimer=0;
-  s4SpeedUpDropped=false; s4LifeUpDropped=false; s4SpeedActive=false;
+  s4SpeedUpDropped=false; s4LifeUpDropped=false; s4TimeUpDropped=false; s4SpeedActive=false;
   s4DropItems=[];
   platforms=[]; enemies=[]; items=[]; bgTrees=[];
   particles=[]; floatTxts=[];
@@ -2969,9 +2969,12 @@ function s4Explode(br,bc,range){
         const _avail=[];
         if(!s4SpeedUpDropped) _avail.push('speed');
         if(!s4LifeUpDropped)  _avail.push('life');
+        if(!s4TimeUpDropped)  _avail.push('time');
         if(_avail.length>0 && Math.random()<0.40){
           const _type=_avail[Math.floor(Math.random()*_avail.length)];
-          if(_type==='speed') s4SpeedUpDropped=true; else s4LifeUpDropped=true;
+          if(_type==='speed') s4SpeedUpDropped=true;
+          else if(_type==='life') s4LifeUpDropped=true;
+          else s4TimeUpDropped=true;
           s4DropItems.push({x:S4_OX+nc*S4_TILE+S4_TILE/2, y:S4_OY+nr*S4_TILE+S4_TILE/2, type:_type, t:0, on:true});
         }
         break;
@@ -3101,6 +3104,11 @@ function updateStage4(){
         beep(660,0.1,0.1,'sine'); beep(880,0.12,0.12,'sine',0.08); beep(1100,0.15,0.18,'sine',0.16);
         spawnParticles(it.x,it.y,'#FFD700',14,'star');
         spawnText(it.x,it.y-20,'⚡ スピード２倍！','#FFD700');
+      } else if(it.type==='time'){
+        stageTimer+=30*60; // 30秒追加
+        beep(784,0.1,0.1,'sine'); beep(1047,0.12,0.12,'sine',0.1); beep(1319,0.18,0.2,'sine',0.2);
+        spawnParticles(it.x,it.y,'#00CFFF',14,'star');
+        spawnText(it.x,it.y-20,'⏱ +30秒！','#00CFFF');
       } else {
         lives=3;
         beep(523,0.15,0.12,'sine'); beep(659,0.12,0.1,'sine',0.1); beep(784,0.2,0.18,'sine',0.2);
@@ -3479,12 +3487,12 @@ function drawS4PowerItems(){
     ctx.restore();
   });
 
-  // 木箱ドロップ：スピードUP / ライフUP
+  // 木箱ドロップ：スピードUP / ライフUP / タイムUP
   s4DropItems.forEach(it=>{
     if(!it.on) return;
     const glow=0.65+Math.sin(it.t*0.12)*0.35;
-    const col=it.type==='speed'?'#FFD700':'#FF69B4';
-    const icon=it.type==='speed'?'⚡':'❤️';
+    const col=it.type==='speed'?'#FFD700':it.type==='time'?'#00CFFF':'#FF69B4';
+    const icon=it.type==='speed'?'⚡':it.type==='time'?'⏱':'❤️';
     ctx.save();
     ctx.globalAlpha=glow;
     ctx.shadowColor=col; ctx.shadowBlur=18;
