@@ -1,5 +1,5 @@
-const CACHE = 'idol-bunny-v1';
-const FILES = ['/', '/game.html', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'idol-bunny-v3';
+const FILES = ['/', '/game.html', '/index.html', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
@@ -14,7 +14,21 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request))
-  );
+  const url = e.request.url;
+  // game.html と index.html は常にネットワーク優先（最新版を取得）
+  const isMain = url.endsWith('/') || url.endsWith('/game.html') || url.endsWith('/index.html');
+  if (isMain) {
+    e.respondWith(
+      fetch(e.request).then(r => {
+        const rc = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, rc));
+        return r;
+      }).catch(() => caches.match(e.request))
+    );
+  } else {
+    // アイコン等はキャッシュ優先（オフライン対応）
+    e.respondWith(
+      caches.match(e.request).then(r => r || fetch(e.request))
+    );
+  }
 });
