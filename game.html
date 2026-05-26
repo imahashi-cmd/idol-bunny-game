@@ -615,6 +615,8 @@ const TB3 = {
 };
 // Stage 2 ドア入室ボタン
 const TB_DOOR = { x: W/2, y: H - 55, r: 42 };
+// Stage 1 Bボタン（魔法少女:星発射 / 戦士:剣振り）
+const TB_B = { x: W - 175, y: H - 55, r: 36 };
 // ポーズボタン（画面右上固定）
 const TB_PAUSE = { x: W - 28, y: 24, r: 20 };
 let s2NearDoor = false;
@@ -658,6 +660,7 @@ function syncTouchKeys(){
     if(hitBtn(x, y, TB.jump))  keys['Space']      = true;
     if((currentStage===2||currentStage===3||currentStage===4) && hitBtn(x, y, TB3.up))   keys['ArrowUp']   = true;
     if((currentStage===2||currentStage===3||currentStage===4) && hitBtn(x, y, TB3.down))  keys['ArrowDown']  = true;
+    if(currentStage===1 && (costumeType===1||costumeType===2) && hitBtn(x, y, TB_B)) keys['KeyB'] = true;
   }
 }
 
@@ -780,6 +783,11 @@ canvas.addEventListener('touchstart', e=>{
     // Stage 1/2: ドアボタン
     if(currentStage===1 && s2NearDoor && hitBtn(pt.x, pt.y, TB_DOOR)){
       just['ArrowUp'] = true;
+      continue;
+    }
+    // Stage 1 Bボタン（星発射 / 剣振り）
+    if(currentStage===1 && (costumeType===1||costumeType===2) && hitBtn(pt.x, pt.y, TB_B)){
+      just['KeyB'] = true;
       continue;
     }
     if(hitBtn(pt.x, pt.y, TB.jump)) just['Space'] = true;
@@ -6577,6 +6585,11 @@ function drawTouchControls(){
   if(currentStage!==6){
     const jumpLabel = currentStage===3?'💣':currentStage===4?(costumeType===2?'斬':costumeType===1?'★':'蹴'):'▲';
     drawBtn(TB.jump.x, TB.jump.y, TB.jump.r, !!keys['Space'], jumpLabel, currentStage===3?20:26);
+  }
+  // Stage 1 Bボタン（魔法少女:星 / 戦士:剣）
+  if(currentStage===1 && state==='play' && (costumeType===1||costumeType===2)){
+    const bLabel = costumeType===1 ? '★' : '⚔';
+    drawBtn(TB_B.x, TB_B.y, TB_B.r, !!keys['KeyB'], bLabel, 22);
   }
   // S2ドアボタン（ドア付近のみ表示）
   if(currentStage===1 && s2NearDoor){
