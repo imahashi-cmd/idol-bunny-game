@@ -7399,7 +7399,7 @@ function _pauseTouchExec(pt){
     const _px=W/2-140, _py=H/2-130;
     for(let i=0;i<4;i++){
       const iy=_py+82+i*46;
-      if(pt.x>=_px+14&&pt.x<=_px+126&&pt.y>=iy-22&&pt.y<=iy+22){
+      if(pt.x>=_px+14&&pt.x<=_px+266&&pt.y>=iy-22&&pt.y<=iy+22){
         pauseMenuIdx=i;
         if(i===0){                        // 再開
           paused=false; _resumeBGM();
@@ -7434,18 +7434,24 @@ function _pauseTouchExec(pt){
     // 下部タップ → 戻る
     if(pt.y>=_py+210-40){ pauseScreen='menu'; }
   } else if(pauseScreen==='settings'){
-    // 環境設定 (pw=300, ph=180)
-    const _px=W/2-150, _py=H/2-90;
-    const _bx=_px+28, _by=_py+102, _bw=244, _bh=18;
-    // ボリュームバー
-    if(pt.x>=_bx&&pt.x<=_bx+_bw&&pt.y>=_by-18&&pt.y<=_by+_bh+18){
+    // 環境設定 (pw=320, ph=210)
+    const _px=W/2-160, _py=H/2-105;
+    const _bx=_px+70, _by=_py+110, _bw=180, _bh=24;
+    // ◄ ボタン (左)
+    if(pt.x>=_px+8&&pt.x<=_px+58&&pt.y>=_by-10&&pt.y<=_by+_bh+10){
+      masterVolume=Math.max(0,+(masterVolume-0.1).toFixed(1)); _applyMasterVolume(); return;
+    }
+    // ► ボタン (右)
+    if(pt.x>=_px+262&&pt.x<=_px+312&&pt.y>=_by-10&&pt.y<=_by+_bh+10){
+      masterVolume=Math.min(1,+(masterVolume+0.1).toFixed(1)); _applyMasterVolume(); return;
+    }
+    // ボリュームバー直接タップ
+    if(pt.x>=_bx&&pt.x<=_bx+_bw&&pt.y>=_by-10&&pt.y<=_by+_bh+10){
       const v=Math.round(((pt.x-_bx)/_bw)*10)/10;
-      masterVolume=Math.max(0,Math.min(1,v));
-      _applyMasterVolume();
-      return;
+      masterVolume=Math.max(0,Math.min(1,v)); _applyMasterVolume(); return;
     }
     // 下部タップ → 戻る
-    if(pt.y>=_py+180-40){ pauseScreen='menu'; }
+    if(pt.y>=_py+210-50){ pauseScreen='menu'; }
   }
 }
 
@@ -8010,7 +8016,7 @@ function _drawPauseStageSelect(){
 }
 
 function _drawPauseSettings(){
-  const pw=300, ph=180;
+  const pw=320, ph=210;
   const {px,py}=_pausePanel(pw,ph);
 
   ctx.font='bold 20px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -8018,30 +8024,43 @@ function _drawPauseSettings(){
   ctx.fillText('⚙ 環境設定', W/2, py+30);
   ctx.shadowBlur=0;
 
-  // ボリュームラベル
-  ctx.font='bold 16px Arial'; ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
-  ctx.fillText('🔊 ボリューム', px+28, py+78);
+  // ボリュームラベル＋パーセント
+  ctx.font='bold 16px Arial'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(`🔊 ボリューム  ${Math.round(masterVolume*100)}%`, W/2, py+76);
+
+  // ◄ ボタン
+  const btnY=py+110, bh=24;
+  const drawSideBtn=(bx,label)=>{
+    ctx.fillStyle='rgba(255,105,180,0.6)';
+    ctx.beginPath(); ctx.roundRect(bx,btnY-10,50,bh+20,10); ctx.fill();
+    ctx.strokeStyle='#FFD700'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.roundRect(bx,btnY-10,50,bh+20,10); ctx.stroke();
+    ctx.font='bold 22px Arial'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(label,bx+25,btnY+bh/2);
+  };
+  drawSideBtn(px+8,'◄');
+  drawSideBtn(px+262,'►');
 
   // ボリュームバー
-  const bx=px+28, by=py+102, bw=pw-56, bh=18;
+  const bx=px+70, bw=180;
   ctx.fillStyle='rgba(255,255,255,0.15)';
-  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,9); ctx.fill();
-  // 塗りつぶし部分
+  ctx.beginPath(); ctx.roundRect(bx,btnY,bw,bh,9); ctx.fill();
   const fillW=Math.round(bw*masterVolume);
   if(fillW>0){
     ctx.fillStyle='#FF69B4';
-    ctx.beginPath(); ctx.roundRect(bx,by,fillW,bh,9); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(bx,btnY,fillW,bh,9); ctx.fill();
   }
-  // 枠線
   ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,9); ctx.stroke();
-  // パーセント
-  ctx.font='bold 14px Arial'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(`${Math.round(masterVolume*100)}%`, W/2, by+bh/2);
+  ctx.beginPath(); ctx.roundRect(bx,btnY,bw,bh,9); ctx.stroke();
 
-  ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(isTouchDevice?'バーをタップで音量設定  /  下部タップで戻る':'← → で音量調整  /  P・Escで戻る', W/2, py+ph-16);
+  // 戻るボタン
+  const backY=py+ph-50;
+  ctx.fillStyle='rgba(255,255,255,0.15)';
+  ctx.beginPath(); ctx.roundRect(px+60,backY,200,36,10); ctx.fill();
+  ctx.strokeStyle='rgba(255,182,193,0.6)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(px+60,backY,200,36,10); ctx.stroke();
+  ctx.font='bold 15px Arial'; ctx.fillStyle='#FFB6C1'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('← 戻る', W/2, backY+18);
 }
 
 // ════════════════════════════════════════════
