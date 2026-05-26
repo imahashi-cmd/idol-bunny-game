@@ -7028,12 +7028,6 @@ function drawSelectScreen(){
     ctx.fillStyle='#888'; ctx.font='13px Arial'; ctx.textAlign='center';
     ctx.fillText(isTouchDevice?'':'← Escape でキャラ選択に戻る',W/2,496);
   }
-  // ── デバッグ表示（一時的） ──
-  ctx.save();
-  ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,18);
-  ctx.fillStyle='#0f0'; ctx.font='11px monospace'; ctx.textAlign='left';
-  ctx.fillText(`step=${selectStep} stage=${startStage} touch=(${_dbgPt.x},${_dbgPt.y})`,4,13);
-  ctx.restore();
 }
 
 // キャラより先に描く: ステージ下からのスポットライト
