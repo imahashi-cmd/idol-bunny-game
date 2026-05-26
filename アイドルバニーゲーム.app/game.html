@@ -612,6 +612,8 @@ const TB3 = {
 };
 // Stage 2 ドア入室ボタン
 const TB_DOOR = { x: W/2, y: H - 55, r: 42 };
+// ポーズボタン（画面右上固定）
+const TB_PAUSE = { x: W - 28, y: 24, r: 20 };
 let s2NearDoor = false;
 let s1HallTransition = 0; // ダンスホール入場トランジション(0=なし,1-60=進行中)
 let s1HallEntered = false;  // ダンスホール入場済みフラグ
@@ -662,6 +664,13 @@ canvas.addEventListener('touchstart', e=>{
   for(const t of e.changedTouches){
     const pt = touchPt(t);
     activeTouches[t.identifier] = pt;
+
+    // ポーズボタン（全ステージ共通）
+    const _pauseable2=(state==='play'||state==='dance_flash'||state==='song_select'||state==='song_clear');
+    if(_pauseable2 && hitBtn(pt.x, pt.y, TB_PAUSE)){
+      just['Escape']=true;
+      continue;
+    }
 
     if(state === 'select'){
       // ステージパネルタップ → 即スタート
@@ -783,6 +792,18 @@ canvas.addEventListener('touchcancel', e=>{
   }
   syncTouchKeys();
 }, { passive: false });
+
+// PC マウス：ポーズボタンのクリック
+canvas.addEventListener('mousedown', e=>{
+  ensureAudio();
+  const r = canvas.getBoundingClientRect();
+  const mx = (e.clientX - r.left) * (W / r.width);
+  const my = (e.clientY - r.top)  * (H / r.height);
+  const _pauseable3=(state==='play'||state==='dance_flash'||state==='song_select'||state==='song_clear');
+  if(_pauseable3 && hitBtn(mx, my, TB_PAUSE)){
+    just['Escape']=true;
+  }
+});
 
 // ── State ─────────────────────────────────
 let state = 'select';  // select | play | dance_flash | win | gameover
@@ -7341,9 +7362,9 @@ function loseLife(){
 }
 
 function update(){
-  // ── ポーズ制御（セレクトボタン / Escape） ──────────────
+  // ── ポーズ制御（セレクトボタン / Escape / P キー） ──────────────
   const _pauseable = (state==='play'||state==='dance_flash'||state==='song_select'||state==='song_clear');
-  if(just['Escape'] && _pauseable){
+  if((just['Escape']||just['KeyP']) && _pauseable){
     if(!paused){
       paused=true; pauseMenuIdx=0; pauseScreen='menu'; pauseStageIdx=currentStage;
       if(bgmStage===3){ const _a3=document.getElementById('bgm3'); if(_a3) _a3.pause(); }
@@ -7749,6 +7770,42 @@ function update(){
 }
 
 // ── ポーズオーバーレイ（全ステージ共通）──────────────
+// ── ポーズボタン（右上固定）+ オーバーレイ ──────────────
+function drawPauseBtn(){
+  const _pauseableD=(state==='play'||state==='dance_flash'||state==='song_select'||state==='song_clear');
+  if(!_pauseableD && !paused) return;
+  const b=TB_PAUSE;
+  ctx.save();
+  // 背景円
+  ctx.globalAlpha = paused ? 0.95 : 0.65;
+  ctx.fillStyle   = paused ? '#FFD700' : 'rgba(0,0,0,0.55)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  // アイコン
+  ctx.globalAlpha = 1;
+  ctx.fillStyle   = paused ? '#222' : '#fff';
+  ctx.font        = '15px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(paused ? '▶' : '⏸', b.x, b.y);
+  // PC用キーヒント（ゲームプレイ中のみ）
+  if(!paused && !isTouchDevice){
+    ctx.globalAlpha=0.7;
+    ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.roundRect(b.x-22,b.y+b.r+3,44,14,4); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle='#eee'; ctx.font='9px Arial';
+    ctx.fillText('P / Esc', b.x, b.y+b.r+11);
+  }
+  ctx.textBaseline='alphabetic';
+  ctx.restore();
+}
+
+// ポーズボタン＋オーバーレイを一括描画（全ステージ共通）
+function drawPauseBtnAndOverlay(){
+  drawPauseBtn();
+  if(paused) drawPauseOverlay();
+}
+
 function drawPauseOverlay(){
   ctx.save();
   ctx.globalAlpha=0.65;
@@ -7807,7 +7864,7 @@ function _drawPauseMenu(){
 
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('↑↓で選択  /  Spaceで決定  /  Escapeで再開', W/2, py+ph-16);
+  ctx.fillText('↑↓で選択  /  Spaceで決定  /  P・Escで再開', W/2, py+ph-16);
 }
 
 function _drawPauseStageSelect(){
@@ -7861,7 +7918,7 @@ function _drawPauseStageSelect(){
   ctx.fillText(sname, W/2, py+140);
 
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
-  ctx.fillText('← → で選択  /  Spaceで移動  /  Escapeで戻る', W/2, py+ph-16);
+  ctx.fillText('← → で選択  /  Spaceで移動  /  P・Escで戻る', W/2, py+ph-16);
 }
 
 function _drawPauseSettings(){
@@ -7896,7 +7953,7 @@ function _drawPauseSettings(){
 
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('← → で音量調整  /  Escapeで戻る', W/2, py+ph-16);
+  ctx.fillText('← → で音量調整  /  P・Escで戻る', W/2, py+ph-16);
 }
 
 // ════════════════════════════════════════════
@@ -7914,7 +7971,7 @@ function draw(){
     else { drawStage3BG(); drawFX(); }
     if(state==='stage_clear') drawStageClear();
     if(state==='gameover') drawGameoverScreen();
-    if(paused) drawPauseOverlay();
+    drawPauseBtnAndOverlay();
     return;
   }
 
@@ -7923,7 +7980,7 @@ function draw(){
     drawStageForestScene();
     if(state==='stage_clear') drawStageClear();
     if(state==='gameover') drawGameoverScreen();
-    if(paused) drawPauseOverlay();
+    drawPauseBtnAndOverlay();
     return;
   }
 
@@ -7932,7 +7989,7 @@ function draw(){
     drawStage4Scene();
     if(state==='stage_clear') drawStageClear();
     if(state==='gameover') drawGameoverScreen();
-    if(paused) drawPauseOverlay();
+    drawPauseBtnAndOverlay();
     return;
   }
 
@@ -7942,7 +7999,7 @@ function draw(){
     if(state==='win') drawWinScreen();
     if(state==='gameover') drawGameoverScreen();
     if(state==='stage_clear') drawStageClear();
-    if(paused) drawPauseOverlay();
+    drawPauseBtnAndOverlay();
     return;
   }
 
@@ -7951,7 +8008,7 @@ function draw(){
     drawStage6();
     if(state==='win') drawWinScreen();
     if(state==='gameover') drawGameoverScreen();
-    if(paused) drawPauseOverlay();
+    drawPauseBtnAndOverlay();
     return;
   }
 
@@ -8019,7 +8076,7 @@ function draw(){
   if(state==='stage_clear') drawStageClear();
   if(state==='win') drawWinScreen();
   if(state==='gameover') drawGameoverScreen();
-  if(paused) drawPauseOverlay();
+  drawPauseBtnAndOverlay();
 
   // ゲームパッド接続通知
   if(gpNoticeTimer > 0){
