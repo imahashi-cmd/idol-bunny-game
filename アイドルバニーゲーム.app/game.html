@@ -672,46 +672,9 @@ canvas.addEventListener('touchstart', e=>{
       continue;
     }
 
-    // ── ポーズメニューのタッチ操作 ──────────────────────
+    // ── ポーズメニューのタッチ操作（直接実行） ──────────────
     if(paused){
-      if(pauseScreen==='menu'){
-        // メインメニュー (pw=280, ph=260)
-        const _pw=280,_ph=260,_px=W/2-140,_py=H/2-130;
-        for(let i=0;i<4;i++){
-          const iy=_py+82+i*46;
-          if(pt.x>=_px+14&&pt.x<=_px+_pw-14&&pt.y>=iy-22&&pt.y<=iy+22){
-            pauseMenuIdx=i; just['Space']=true; break;
-          }
-        }
-      } else if(pauseScreen==='stage_select'){
-        // ステージ選択 (pw=360, ph=210)
-        const _ph=210,_py=H/2-105;
-        const _bw=46,_bh=46,_gap=7;
-        const _totalW=6*(_bw+_gap)-_gap;
-        const _bx0=W/2-_totalW/2, _by=_py+62;
-        const _SF_ORDER=[1,2,6,3,4,5];
-        let _stageHit=false;
-        for(let i=0;i<6;i++){
-          const _bx=_bx0+i*(_bw+_gap);
-          if(pt.x>=_bx&&pt.x<=_bx+_bw&&pt.y>=_by&&pt.y<=_by+_bh){
-            pauseStageIdx=_SF_ORDER[i]; just['Space']=true; _stageHit=true; break;
-          }
-        }
-        // パネル外/下部タップ → 戻る
-        if(!_stageHit&&pt.y>=_py+_ph-36) just['Escape']=true;
-      } else if(pauseScreen==='settings'){
-        // 環境設定 (pw=300, ph=180)
-        const _pw=300,_ph=180,_px=W/2-150,_py=H/2-90;
-        const _bx=_px+28,_by=_py+102,_bw=_pw-56,_bh=18;
-        // ボリュームバーをタップ → 直接音量セット
-        if(pt.x>=_bx&&pt.x<=_bx+_bw&&pt.y>=_by-16&&pt.y<=_by+_bh+16){
-          const v=Math.round(((pt.x-_bx)/_bw)*10)/10;
-          masterVolume=Math.max(0,Math.min(1,v));
-          _applyMasterVolume();
-        }
-        // 戻る（パネル下部タップ）
-        else if(pt.y>=_py+_ph-36) just['Escape']=true;
-      }
+      _pauseTouchExec(pt);
       delete activeTouches[t.identifier];
       continue;
     }
@@ -837,14 +800,19 @@ canvas.addEventListener('touchcancel', e=>{
   syncTouchKeys();
 }, { passive: false });
 
-// PC マウス：ポーズボタンのクリック
+// PC マウス：ポーズボタン + ポーズメニュークリック
 canvas.addEventListener('mousedown', e=>{
   ensureAudio();
   const r = canvas.getBoundingClientRect();
-  const mx = (e.clientX - r.left) * (W / r.width);
-  const my = (e.clientY - r.top)  * (H / r.height);
+  const pt = {
+    x: (e.clientX - r.left) * (W / r.width),
+    y: (e.clientY - r.top)  * (H / r.height)
+  };
+  // ポーズ中 → メニュー直接実行
+  if(paused){ _pauseTouchExec(pt); return; }
+  // ポーズボタン
   const _pauseable3=(state==='play'||state==='dance_flash'||state==='song_select'||state==='song_clear');
-  if(_pauseable3 && hitBtn(mx, my, TB_PAUSE)){
+  if(_pauseable3 && hitBtn(pt.x, pt.y, TB_PAUSE)){
     just['Escape']=true;
   }
 });
@@ -7402,6 +7370,64 @@ function loseLife(){
     P.x=Math.max(80,cam.x+80); P.y=200;
     P.vx=0; P.vy=0; P.invTimer=130;
     spawnParticles(P.x+P.w/2+cam.x,P.y+P.h/2,'#FF69B4',12,'circle');
+  }
+}
+
+// ── ポーズメニュー タッチ直接実行（just[]経由しない） ────────────
+function _pauseTouchExec(pt){
+  if(!paused) return;
+  if(pauseScreen==='menu'){
+    // メインメニュー (pw=280, ph=260)
+    const _px=W/2-140, _py=H/2-130;
+    for(let i=0;i<4;i++){
+      const iy=_py+82+i*46;
+      if(pt.x>=_px+14&&pt.x<=_px+126&&pt.y>=iy-22&&pt.y<=iy+22){
+        pauseMenuIdx=i;
+        if(i===0){                        // 再開
+          paused=false; _resumeBGM();
+        } else if(i===1){                 // ステージ選択
+          pauseScreen='stage_select'; pauseStageIdx=currentStage;
+        } else if(i===2){                 // 環境設定
+          pauseScreen='settings';
+        } else {                          // やめる
+          paused=false; stopBGM();
+          if(currentStage===5) s6StopAllNotes();
+          state='select'; selectStep='char';
+        }
+        return;
+      }
+    }
+  } else if(pauseScreen==='stage_select'){
+    // ステージ選択 (pw=360, ph=210)
+    const _py=H/2-105;
+    const _bw=46,_bh=46,_gap=7;
+    const _bx0=W/2-(6*(_bw+_gap)-_gap)/2, _by=_py+62;
+    const _SF_ORDER=[1,2,6,3,4,5];
+    for(let i=0;i<6;i++){
+      const _bx=_bx0+i*(_bw+_gap);
+      if(pt.x>=_bx&&pt.x<=_bx+_bw&&pt.y>=_by&&pt.y<=_by+_bh){
+        pauseStageIdx=_SF_ORDER[i];
+        paused=false; stopBGM();
+        if(currentStage===5) s6StopAllNotes();
+        initGame(pauseStageIdx);
+        return;
+      }
+    }
+    // 下部タップ → 戻る
+    if(pt.y>=_py+210-40){ pauseScreen='menu'; }
+  } else if(pauseScreen==='settings'){
+    // 環境設定 (pw=300, ph=180)
+    const _px=W/2-150, _py=H/2-90;
+    const _bx=_px+28, _by=_py+102, _bw=244, _bh=18;
+    // ボリュームバー
+    if(pt.x>=_bx&&pt.x<=_bx+_bw&&pt.y>=_by-18&&pt.y<=_by+_bh+18){
+      const v=Math.round(((pt.x-_bx)/_bw)*10)/10;
+      masterVolume=Math.max(0,Math.min(1,v));
+      _applyMasterVolume();
+      return;
+    }
+    // 下部タップ → 戻る
+    if(pt.y>=_py+180-40){ pauseScreen='menu'; }
   }
 }
 
