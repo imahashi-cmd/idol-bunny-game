@@ -672,6 +672,50 @@ canvas.addEventListener('touchstart', e=>{
       continue;
     }
 
+    // ── ポーズメニューのタッチ操作 ──────────────────────
+    if(paused){
+      if(pauseScreen==='menu'){
+        // メインメニュー (pw=280, ph=260)
+        const _pw=280,_ph=260,_px=W/2-140,_py=H/2-130;
+        for(let i=0;i<4;i++){
+          const iy=_py+82+i*46;
+          if(pt.x>=_px+14&&pt.x<=_px+_pw-14&&pt.y>=iy-22&&pt.y<=iy+22){
+            pauseMenuIdx=i; just['Space']=true; break;
+          }
+        }
+      } else if(pauseScreen==='stage_select'){
+        // ステージ選択 (pw=360, ph=210)
+        const _ph=210,_py=H/2-105;
+        const _bw=46,_bh=46,_gap=7;
+        const _totalW=6*(_bw+_gap)-_gap;
+        const _bx0=W/2-_totalW/2, _by=_py+62;
+        const _SF_ORDER=[1,2,6,3,4,5];
+        let _stageHit=false;
+        for(let i=0;i<6;i++){
+          const _bx=_bx0+i*(_bw+_gap);
+          if(pt.x>=_bx&&pt.x<=_bx+_bw&&pt.y>=_by&&pt.y<=_by+_bh){
+            pauseStageIdx=_SF_ORDER[i]; just['Space']=true; _stageHit=true; break;
+          }
+        }
+        // パネル外/下部タップ → 戻る
+        if(!_stageHit&&pt.y>=_py+_ph-36) just['Escape']=true;
+      } else if(pauseScreen==='settings'){
+        // 環境設定 (pw=300, ph=180)
+        const _pw=300,_ph=180,_px=W/2-150,_py=H/2-90;
+        const _bx=_px+28,_by=_py+102,_bw=_pw-56,_bh=18;
+        // ボリュームバーをタップ → 直接音量セット
+        if(pt.x>=_bx&&pt.x<=_bx+_bw&&pt.y>=_by-16&&pt.y<=_by+_bh+16){
+          const v=Math.round(((pt.x-_bx)/_bw)*10)/10;
+          masterVolume=Math.max(0,Math.min(1,v));
+          _applyMasterVolume();
+        }
+        // 戻る（パネル下部タップ）
+        else if(pt.y>=_py+_ph-36) just['Escape']=true;
+      }
+      delete activeTouches[t.identifier];
+      continue;
+    }
+
     if(state === 'select'){
       // ステージパネルタップ → 即スタート
       const sw=105, sh=52, gap=10;
@@ -7864,7 +7908,7 @@ function _drawPauseMenu(){
 
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('↑↓で選択  /  Spaceで決定  /  P・Escで再開', W/2, py+ph-16);
+  ctx.fillText(isTouchDevice?'タップで選択・決定':'↑↓で選択  /  Spaceで決定  /  P・Escで再開', W/2, py+ph-16);
 }
 
 function _drawPauseStageSelect(){
@@ -7918,7 +7962,7 @@ function _drawPauseStageSelect(){
   ctx.fillText(sname, W/2, py+140);
 
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
-  ctx.fillText('← → で選択  /  Spaceで移動  /  P・Escで戻る', W/2, py+ph-16);
+  ctx.fillText(isTouchDevice?'タップで移動  /  下部タップで戻る':'← → で選択  /  Spaceで移動  /  P・Escで戻る', W/2, py+ph-16);
 }
 
 function _drawPauseSettings(){
@@ -7953,7 +7997,7 @@ function _drawPauseSettings(){
 
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,182,193,0.7)';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('← → で音量調整  /  P・Escで戻る', W/2, py+ph-16);
+  ctx.fillText(isTouchDevice?'バーをタップで音量設定  /  下部タップで戻る':'← → で音量調整  /  P・Escで戻る', W/2, py+ph-16);
 }
 
 // ════════════════════════════════════════════
