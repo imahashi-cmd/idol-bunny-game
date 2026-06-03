@@ -859,6 +859,14 @@ let lives = 3;
 let noteCount = 0;
 let selectAnim = 0;
 let danceTimer = 0;
+// ── ボーナスステージ ──
+let danceCount = 0;
+let bonusPhase = 'none';   // 'none'|'enter'|'play'|'exit'
+let bonusT = 0;
+let bonusTimer = 0;
+let bonusSaveX=0,bonusSaveY=0,bonusSaveCamX=0;
+let bonusPlats=[], bonusStarList=[];
+let bonusNextX=0, bonusStarCount=0;
 let danceAnchorX = 0, danceAnchorY = 0;
 let winTimer = 0;
 let winDance = 0;
@@ -890,6 +898,7 @@ function initGame(stage=1, keepLives=false) {
   paused=false; pauseMenuIdx=0;
   score=0; if(!keepLives) lives=3; noteCount=0; goalReached=false; starCount=0;
   danceTimer=0; winTimer=0; gameoverTimer=0; stageClearTimer=0;
+  danceCount=0; bonusPhase='none'; bonusT=0;
   s1HallTransition=0; s1HallEntered=false;
   const timeLimits={1:-1,2:-1,3:7200,4:3600,5:-1};
   stageTimer=timeLimits[stage]??-1;
@@ -7531,6 +7540,9 @@ function update(){
     return;
   }
 
+  // ── ボーナスステージ ──
+  if(bonusPhase!=='none'){ _updateBonus(); return; }
+
   // タイトル画面BGM：audioCtx が running 状態になり次第起動
   if(state==='select' && audioCtx && !_titleBGMRunning){
     if(audioCtx.state==='running') startTitleBGM();
@@ -7637,7 +7649,15 @@ function update(){
 
     danceTimer--;
     updateFX();
-    if(danceTimer<=0){ state='play'; P.dancing=false; P.y=danceAnchorY; P.x=danceAnchorX; }
+    if(danceTimer<=0){
+      state='play'; P.dancing=false; P.y=danceAnchorY; P.x=danceAnchorX;
+      if(currentStage===1){ danceCount++;
+        if(danceCount>=10 && bonusPhase==='none'){
+          danceCount=0; bonusPhase='enter'; bonusT=0;
+          bonusSaveX=P.x; bonusSaveY=P.y; bonusSaveCamX=cam.x;
+        }
+      }
+    }
     return;
   }
 
@@ -7908,9 +7928,212 @@ function drawPauseBtn(){
 }
 
 // ポーズボタン＋オーバーレイを一括描画（全ステージ共通）
+// ════════════════════════════════════════════
+//  BONUS STAGE
+// ════════════════════════════════════════════
+function _initBonusPlats(){
+  bonusPlats=[]; bonusStarList=[]; bonusNextX=0; bonusStarCount=0;
+  bonusPlats.push({x:60,y:210,w:220});
+  _spawnBonusChunk();
+}
+function _spawnBonusChunk(){
+  const toX=bonusNextX+W+500;
+  let x=Math.max(bonusNextX,340);
+  while(x<toX){
+    const w=90+Math.random()*140, y=130+Math.random()*230;
+    bonusPlats.push({x,y,w});
+    const n=1+Math.floor(Math.random()*3);
+    for(let i=0;i<n;i++) bonusStarList.push({
+      x:x+(i+1)*(w/(n+1)), y:y-28-Math.random()*50, on:true, t:Math.random()*100
+    });
+    x+=w+70+Math.random()*130;
+  }
+  bonusNextX=x;
+}
+function _bonusEnd(){
+  bonusPhase='exit'; bonusT=0;
+  cam.x=bonusSaveCamX;
+  P.x=bonusSaveX; P.y=-120; P.vx=0; P.vy=0;
+  beep(784,0.08,0.15,'sine'); beep(523,0.08,0.25,'sine',0.15);
+}
+function _updateBonus(){
+  if(bonusPhase==='enter'){
+    bonusT++;
+    P.vy=-3; P.vx=0; P.y+=P.vy; P.onGround=false;
+    if(bonusT>=80){
+      bonusPhase='play'; bonusT=0; bonusTimer=30*60;
+      _initBonusPlats();
+      P.x=160; P.y=-70; P.vx=0; P.vy=4; P.invTimer=0;
+      cam.x=0;
+    }
+    updateFX(); return;
+  }
+  if(bonusPhase==='play'){
+    bonusTimer--;
+    if(keys['ArrowLeft']||keys['KeyA']){P.vx=Math.max(P.vx-0.85,-5);P.facing=-1;P.walkT+=0.25;}
+    else if(keys['ArrowRight']||keys['KeyD']){P.vx=Math.min(P.vx+0.85,5);P.facing=1;P.walkT+=0.25;}
+    else P.vx*=0.80;
+    if((just['Space']||just['ArrowUp']||just['KeyW']||just['KeyC'])&&P.onGround){
+      P.vy=-12.5; P.onGround=false; beep(440,0.03,0.08,'sine');
+    }
+    P.vy=Math.min(P.vy+0.55,16);
+    P.x+=P.vx; P.y+=P.vy; P.onGround=false;
+    for(const pl of bonusPlats){
+      if(P.x+P.w>pl.x&&P.x<pl.x+pl.w&&P.vy>=0&&P.y+P.h>=pl.y&&P.y+P.h<=pl.y+28){
+        P.y=pl.y-P.h; P.vy=0; P.onGround=true;
+      }
+    }
+    if(P.y>H+60){
+      lives=Math.max(0,lives-1); beep(220,0.1,0.3,'sawtooth');
+      const pl=bonusPlats.find(p=>p.x>=cam.x&&p.x<cam.x+W);
+      if(pl){P.x=pl.x+pl.w/2-P.w/2;P.y=pl.y-P.h-5;}else{P.x=cam.x+200;P.y=150;}
+      P.vx=0; P.vy=0;
+      if(lives<=0){_bonusEnd();return;}
+    }
+    const tc=P.x-W*0.38;
+    if(tc>cam.x) cam.x+=(tc-cam.x)*0.1;
+    if(cam.x<0) cam.x=0;
+    if(cam.x+W+300>bonusNextX) _spawnBonusChunk();
+    while(bonusPlats.length>1&&bonusPlats[0].x+bonusPlats[0].w<cam.x-200) bonusPlats.shift();
+    for(let i=bonusStarList.length-1;i>=0;i--){
+      const s=bonusStarList[i];
+      if(!s.on){bonusStarList.splice(i,1);continue;}
+      s.t++;
+      const sx=s.x-cam.x,sy=s.y+Math.sin(s.t*0.06)*5;
+      if(sx<-80){bonusStarList.splice(i,1);continue;}
+      if(P.x<s.x+18&&P.x+P.w>s.x-18&&P.y<s.y+18&&P.y+P.h>s.y-18){
+        s.on=false; bonusStarCount++; score+=500; sfxStar();
+        spawnParticles(sx,sy,'#FFD700',12,'star');
+        spawnText(sx,sy-20,'★ +500','#FFD700');
+        if(bonusStarCount%5===0){
+          lives=Math.min(lives+1,9);
+          beep(523,0.1,0.15,'sine');beep(659,0.1,0.12,'sine',0.15);beep(784,0.15,0.15,'sine',0.3);
+          spawnText(sx,sy-46,'♥ ライフ+1！','#FF69B4');
+        }
+      }
+    }
+    if(bonusTimer<=0) _bonusEnd();
+    updateFX(); return;
+  }
+  if(bonusPhase==='exit'){
+    bonusT++;
+    const t=Math.min(1,bonusT/90);
+    P.y=-120+(bonusSaveY+120)*t; P.x=bonusSaveX; P.vx=0; P.vy=0;
+    if(bonusT>=90){
+      P.x=bonusSaveX; P.y=bonusSaveY; cam.x=bonusSaveCamX;
+      bonusPhase='none'; bonusT=0; P.vx=0; P.vy=0; P.onGround=false;
+      beep(523,0.08,0.2,'sine');beep(659,0.08,0.18,'sine',0.15);beep(784,0.1,0.2,'sine',0.3);
+    }
+    updateFX(); return;
+  }
+}
+function _drawBonusDecoCloud(x,y,sc){
+  ctx.save(); ctx.globalAlpha=0.45; ctx.fillStyle='#fff';
+  ctx.translate(x,y); ctx.scale(sc,sc);
+  ctx.beginPath();
+  ctx.arc(0,0,28,0,Math.PI*2); ctx.arc(34,-7,22,0,Math.PI*2);
+  ctx.arc(-26,-5,18,0,Math.PI*2); ctx.arc(10,-20,16,0,Math.PI*2);
+  ctx.fill(); ctx.restore();
+}
+function _drawCloudPlat(sx,y,w){
+  ctx.save(); ctx.fillStyle='rgba(255,255,255,0.95)';
+  const seg=Math.max(2,Math.ceil(w/38)), bw=w/seg;
+  for(let i=0;i<seg;i++){
+    const cx=sx+i*bw+bw/2;
+    ctx.beginPath(); ctx.arc(cx,y,bw/2+3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx+bw*0.28,y-11,bw*0.32,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillRect(sx,y,w,16); ctx.restore();
+}
+function _drawBonusStar(sx,sy,r){
+  ctx.save(); ctx.fillStyle='#FFD700'; ctx.strokeStyle='#FF8C00'; ctx.lineWidth=1.5;
+  ctx.shadowColor='#FFD700'; ctx.shadowBlur=10;
+  ctx.beginPath();
+  for(let i=0;i<5;i++){
+    const a=i*4*Math.PI/5-Math.PI/2, b=a+2*Math.PI/5;
+    i===0?ctx.moveTo(sx+Math.cos(a)*r,sy+Math.sin(a)*r):ctx.lineTo(sx+Math.cos(a)*r,sy+Math.sin(a)*r);
+    ctx.lineTo(sx+Math.cos(b)*r*0.4,sy+Math.sin(b)*r*0.4);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0; ctx.restore();
+}
+function _drawBonusHUD(){
+  const sec=Math.ceil(bonusTimer/60);
+  ctx.save(); ctx.textAlign='center';
+  ctx.font='bold 19px Arial'; ctx.fillStyle='#FF69B4';
+  ctx.fillText('♥'.repeat(Math.max(0,lives)),W/2,26);
+  const pulse=sec<=10&&Math.floor(bonusT/8)%2===0;
+  ctx.font=`bold ${pulse?27:22}px Arial`;
+  ctx.fillStyle=sec<=10?'#FF4444':'#FFD700';
+  ctx.shadowColor=sec<=10?'#FF2200':'#FFD700'; ctx.shadowBlur=10;
+  ctx.fillText(`⏱ BONUS ${sec}秒`,W/2,52);
+  ctx.shadowBlur=0; ctx.restore();
+}
+function _drawBonusStage(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#5EC8F0'); g.addColorStop(0.5,'#AEE4FB'); g.addColorStop(1,'#E8F8FF');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.fillStyle='rgba(255,255,160,0.75)';
+  ctx.beginPath(); ctx.arc(W-90,65,44,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,160,0.25)';
+  ctx.beginPath(); ctx.arc(W-90,65,72,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  for(let i=0;i<5;i++){
+    const bx=((i*190-cam.x*0.18+1400)%W+W)%W;
+    _drawBonusDecoCloud(bx,45+i*18,0.7+i*0.12);
+  }
+  for(const pl of bonusPlats){
+    const sx=pl.x-cam.x;
+    if(sx>W+80||sx+pl.w<-80) continue;
+    _drawCloudPlat(sx,pl.y,pl.w);
+  }
+  for(const s of bonusStarList){
+    if(!s.on) continue;
+    const sx=s.x-cam.x, sy=s.y+Math.sin(s.t*0.06)*5;
+    if(sx<-50||sx>W+50) continue;
+    _drawBonusStar(sx,sy,13);
+  }
+  drawFX();
+  const blink=P.invTimer>0&&Math.floor(P.invTimer/5)%2===0;
+  if(!blink){
+    ctx.save();
+    ctx.translate(P.x-cam.x+P.w/2,P.y+P.h/2);
+    if(P.facing===-1) ctx.scale(-1,1);
+    drawCharacter(0,0,1,P.walkT,false,false,0);
+    ctx.restore();
+  }
+  drawTouchControls();
+  _drawBonusHUD();
+  drawPauseBtnAndOverlay();
+}
+function _drawBonusOverlay(){
+  const alpha=Math.min(1,bonusT/35)*0.85;
+  const px=P.x-cam.x+P.w/2, beamW=100;
+  ctx.save();
+  const lg=ctx.createLinearGradient(px-beamW/2,0,px+beamW/2,0);
+  lg.addColorStop(0,'rgba(255,255,200,0)');
+  lg.addColorStop(0.5,'rgba(255,255,200,0.75)');
+  lg.addColorStop(1,'rgba(255,255,200,0)');
+  ctx.fillStyle=lg; ctx.globalAlpha=alpha;
+  ctx.fillRect(px-beamW/2,0,beamW,H);
+  if(Math.random()<0.5){
+    ctx.globalAlpha=alpha*0.9; ctx.fillStyle='rgba(255,255,150,1)';
+    for(let i=0;i<4;i++){
+      const sx=px+(Math.random()-0.5)*beamW*0.7, sy=Math.random()*H;
+      ctx.beginPath(); ctx.arc(sx,sy,1+Math.random()*2.5,0,Math.PI*2); ctx.fill();
+    }
+  }
+  if(bonusPhase==='enter'&&bonusT>55){
+    ctx.globalAlpha=Math.min(1,(bonusT-55)/25);
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+  }
+  ctx.restore();
+}
+
 function drawPauseBtnAndOverlay(){
   drawPauseBtn();
   if(paused) drawPauseOverlay();
+  if(bonusPhase==='enter'||bonusPhase==='exit') _drawBonusOverlay();
 }
 
 function drawPauseOverlay(){
@@ -8081,6 +8304,7 @@ function _drawPauseSettings(){
 // ════════════════════════════════════════════
 function draw(){
   ctx.clearRect(0,0,W,H);
+  if(bonusPhase==='play'){ _drawBonusStage(); return; }
 
   if(state==='select'){ drawSelectScreen(); return; }
   if(state==='costume_room'){ drawCostumeRoom(); return; }
