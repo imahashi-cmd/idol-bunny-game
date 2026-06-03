@@ -885,10 +885,10 @@ let platforms=[], enemies=[], items=[], particles=[], floatTxts=[], bgTrees=[];
 // ════════════════════════════════════════════
 //  LEVEL INIT
 // ════════════════════════════════════════════
-function initGame(stage=1) {
+function initGame(stage=1, keepLives=false) {
   currentStage=stage;
   paused=false; pauseMenuIdx=0;
-  score=0; lives=3; noteCount=0; goalReached=false; starCount=0;
+  score=0; if(!keepLives) lives=3; noteCount=0; goalReached=false; starCount=0;
   danceTimer=0; winTimer=0; gameoverTimer=0; stageClearTimer=0;
   s1HallTransition=0; s1HallEntered=false;
   const timeLimits={1:-1,2:-1,3:7200,4:3600,5:-1};
@@ -7440,7 +7440,7 @@ function _pauseTouchExec(pt){
         pauseStageIdx=_SF_ORDER[i];
         paused=false; stopBGM();
         if(currentStage===5) s6StopAllNotes();
-        initGame(pauseStageIdx);
+        initGame(pauseStageIdx,true);
         return;
       }
     }
@@ -7519,7 +7519,7 @@ function update(){
       if(just['Space']||just['Enter']){
         paused=false; stopBGM();
         if(currentStage===5) s6StopAllNotes();
-        initGame(pauseStageIdx);
+        initGame(pauseStageIdx,true);
       }
     }
     // ── 環境設定サブ画面 ─────────────────────────────
@@ -7564,11 +7564,11 @@ function update(){
   if(state==='stage_clear'){
     stageClearTimer++;
     if(stageClearTimer>200||(just['Space']||just['Enter'])){
-      if(currentStage===1) initGame(2);
-      else if(currentStage===2) initGame(6);  // スペース→森
-      else if(currentStage===6) initGame(3);  // 森→爆弾迷路
-      else if(currentStage===3) initGame(4);
-      else initGame(5);
+      if(currentStage===1) initGame(2,true);
+      else if(currentStage===2) initGame(6,true);  // スペース→森
+      else if(currentStage===6) initGame(3,true);  // 森→爆弾迷路
+      else if(currentStage===3) initGame(4,true);
+      else initGame(5,true);
     }
     return;
   }
@@ -7588,8 +7588,8 @@ function update(){
   if(state==='gameover'){
     gameoverTimer++;
     if(gameoverTimer>80&&(just['Space']||just['Enter'])){
-      if(currentStage===5){ initStage6(); } // 音ゲーは曲選択に戻る
-      else if(currentStage===6){ initStageForest(); state='play'; } // 森ステージはリスタート
+      if(currentStage===5){ lives=3; initStage6(); } // 音ゲーは曲選択に戻る
+      else if(currentStage===6){ lives=3; initStageForest(); state='play'; } // 森ステージはリスタート
       else { state='select'; selectStep='char'; }
     }
     return;
