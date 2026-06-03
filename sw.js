@@ -1,4 +1,4 @@
-const CACHE = 'idol-bunny-v6';
+const CACHE = 'idol-bunny-v7';
 const FILES = ['/', '/game.html', '/index.html', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
